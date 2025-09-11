@@ -57,6 +57,36 @@ String repeatString(const String &str, int count)
     return result;
 }
 
+// Global cleanup function for emergency shutdowns and resets
+void performGlobalCleanup()
+{
+    Serial.println("🧹 Performing global system cleanup...");
+    
+    // Clean up WebSocket client
+    if (wsClient != nullptr)
+    {
+        Serial.println("  - Cleaning up WebSocket client");
+        delete wsClient;
+        wsClient = nullptr;
+    }
+    
+    // Stop WiFi AP mode if active
+    if (wifiManager.isInAPMode())
+    {
+        Serial.println("  - Stopping WiFi AP mode");
+        wifiManager.stopAPMode();
+    }
+    
+    // Disconnect WiFi
+    if (wifiManager.isConnected())
+    {
+        Serial.println("  - Disconnecting WiFi");
+        WiFi.disconnect(true);
+    }
+    
+    Serial.println("✅ Global cleanup completed");
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -286,12 +316,24 @@ void handleDeviceRegistration()
         {
             Serial.println("✅ Device registered with HTTP API");
 
-            // Initialize WebSocket client
-            if (wsClient)
+            // Initialize WebSocket client with proper cleanup
+            if (wsClient != nullptr)
             {
+                Serial.println("🔄 Cleaning up existing WebSocket client");
                 delete wsClient;
+                wsClient = nullptr;
             }
+            
             wsClient = new WSClient(&deviceManager, &lightManager);
+            
+            // Check allocation success
+            if (wsClient == nullptr)
+            {
+                Serial.println("❌ Failed to allocate memory for WebSocket client");
+                setState(STATE_ERROR);
+                return;
+            }
+            
             wsClient->begin(serverUrl);
 
             // Attempt WebSocket connection
@@ -381,15 +423,36 @@ void handleOperational()
 void handleError()
 {
     static unsigned long lastErrorReport = 0;
+    static int errorCount = 0;
     const unsigned long ERROR_REPORT_INTERVAL = 10000; // 10 seconds
 
     if (millis() - lastErrorReport > ERROR_REPORT_INTERVAL)
     {
-        Serial.println("❌ Device in error state - attempting recovery...");
+        errorCount++;
+        Serial.println("❌ Device in error state (attempt " + String(errorCount) + ") - attempting recovery...");
+        
+        // Perform cleanup before recovery attempt
+        if (errorCount > 3)
+        {
+            Serial.println("🧹 Multiple errors detected, performing global cleanup before recovery");
+            performGlobalCleanup();
+        }
+        
         lastErrorReport = millis();
 
-        // Try to recover by going back to WiFi setup
-        setState(STATE_WIFI_SETUP);
+        // Progressive recovery strategy
+        if (errorCount < 5)
+        {
+            // Try to recover by going back to WiFi setup
+            setState(STATE_WIFI_SETUP);
+        }
+        else
+        {
+            Serial.println("💀 Too many errors, performing complete restart after cleanup");
+            performGlobalCleanup();
+            delay(2000);
+            ESP.restart();
+        }
     }
 }
 
@@ -481,14 +544,18 @@ void serialEvent()
         }
         else if (command == "reset")
         {
-            Serial.println("🔄 Resetting device...");
+            Serial.println("🔄 Resetting device with proper cleanup...");
+            performGlobalCleanup();
             deviceManager.resetDevice();
             wifiManager.clearWiFiCredentials();
+            delay(1000); // Give time for cleanup
             ESP.restart();
         }
         else if (command == "restart")
         {
-            Serial.println("🔄 Restarting device...");
+            Serial.println("🔄 Restarting device with cleanup...");
+            performGlobalCleanup();
+            delay(1000); // Give time for cleanup
             ESP.restart();
         }
         else if (command == "wifi")

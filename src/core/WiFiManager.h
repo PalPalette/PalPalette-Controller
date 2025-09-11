@@ -46,6 +46,7 @@ public:
     bool hasStoredCredentials();
     void setServerURL(const String &url);
     String getServerURL();
+    bool isCaptivePortalHealthy(); // Check if captive portal is properly initialized
 };
 
 #endif

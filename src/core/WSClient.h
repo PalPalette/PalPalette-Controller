@@ -59,6 +59,7 @@ private:
 
 public:
     WSClient(DeviceManager *devManager, LightManager *lightMgr = nullptr);
+    ~WSClient(); // Destructor for proper cleanup
 
     void begin(const String &url);
     bool connect();

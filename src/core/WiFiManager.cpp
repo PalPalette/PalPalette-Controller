@@ -114,33 +114,80 @@ void WiFiManager::stopAPMode()
 
     Serial.println("🔄 Stopping Access Point mode...");
 
-    if (server)
+    // Safely cleanup web server
+    if (server != nullptr)
     {
         server->end();
         delete server;
         server = nullptr;
     }
 
-    if (dnsServer)
+    // Safely cleanup DNS server
+    if (dnsServer != nullptr)
     {
         dnsServer->stop();
         delete dnsServer;
         dnsServer = nullptr;
     }
 
+    // Disconnect AP and cleanup WiFi state
     WiFi.softAPdisconnect(true);
     isAPMode = false;
+    apStartTime = 0;
 
-    Serial.println("✅ Access Point stopped");
+    Serial.println("✅ Access Point stopped and resources cleaned up");
 }
 
 void WiFiManager::setupCaptivePortal()
 {
+    // Ensure cleanup of existing servers before creating new ones
+    if (server != nullptr)
+    {
+        server->end();
+        delete server;
+        server = nullptr;
+    }
+    
+    if (dnsServer != nullptr)
+    {
+        dnsServer->stop();
+        delete dnsServer;
+        dnsServer = nullptr;
+    }
+
+    // Create new server instances
     server = new AsyncWebServer(80);
     dnsServer = new DNSServer();
 
-    // Start DNS server for captive portal
-    dnsServer->start(53, "*", WiFi.softAPIP());
+    // Verify allocation succeeded
+    if (server == nullptr || dnsServer == nullptr)
+    {
+        Serial.println("❌ Failed to allocate memory for web server components");
+        // Cleanup any successful allocation
+        if (server != nullptr)
+        {
+            delete server;
+            server = nullptr;
+        }
+        if (dnsServer != nullptr)
+        {
+            delete dnsServer;
+            dnsServer = nullptr;
+        }
+        return;
+    }
+
+    // Start DNS server for captive portal with error checking
+    if (!dnsServer->start(53, "*", WiFi.softAPIP()))
+    {
+        Serial.println("❌ Failed to start DNS server for captive portal");
+        // Cleanup on failure
+        delete server;
+        server = nullptr;
+        delete dnsServer;
+        dnsServer = nullptr;
+        return;
+    }
 
     // Setup web server routes
     server->on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
@@ -160,7 +207,7 @@ void WiFiManager::setupCaptivePortal()
                        { handleRoot(request); });
 
     server->begin();
-    Serial.println("🌐 Captive portal web server started");
+    Serial.println("✅ Captive portal web server started successfully");
 }
 
 void WiFiManager::handleRoot(AsyncWebServerRequest *request)
@@ -396,14 +443,18 @@ String WiFiManager::getMacAddress()
 
 void WiFiManager::loop()
 {
-    if (isAPMode && dnsServer)
+    if (isAPMode && dnsServer != nullptr)
     {
         dnsServer->processNextRequest();
 
-        // Check for AP timeout
+        // Check for AP timeout with proper error handling
         if (millis() - apStartTime > CAPTIVE_PORTAL_TIMEOUT)
         {
-            Serial.println("⏰ Captive portal timeout reached, restarting...");
+            Serial.println("⏰ Captive portal timeout reached, cleaning up and restarting...");
+            
+            // Proper cleanup before restart
+            stopAPMode();
+            delay(1000); // Give time for cleanup
             ESP.restart();
         }
     }
@@ -423,4 +474,9 @@ void WiFiManager::setServerURL(const String &url)
 String WiFiManager::getServerURL()
 {
     return preferences.getString(PREF_SERVER_URL, DEFAULT_SERVER_URL);
+}
+
+bool WiFiManager::isCaptivePortalHealthy()
+{
+    return isAPMode && (server != nullptr) && (dnsServer != nullptr);
 }

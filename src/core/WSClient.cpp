@@ -5,6 +5,16 @@ WSClient::WSClient(DeviceManager *devManager, LightManager *lightMgr)
 {
 }
 
+WSClient::~WSClient()
+{
+    // Proper cleanup of WebSocket connection
+    if (isConnected)
+    {
+        Serial.println("🔌 WSClient destructor: Cleaning up WebSocket connection");
+        disconnect();
+    }
+}
+
 void WSClient::begin(const String &url)
 {
     serverUrl = url;
@@ -61,9 +71,16 @@ void WSClient::disconnect()
 {
     if (isConnected)
     {
+        Serial.println("🔌 Disconnecting WebSocket...");
+        
+        // Send close frame properly
         client.close();
+        
+        // Wait a bit for clean disconnection
+        delay(100);
+        
         isConnected = false;
-        Serial.println("🔌 WebSocket disconnected");
+        Serial.println("✅ WebSocket disconnected cleanly");
     }
 }
 
