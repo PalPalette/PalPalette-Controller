@@ -21,7 +21,7 @@
 #define CAPTIVE_PORTAL_TIMEOUT 300000 // 5 minutes
 
 // Watchdog Timer constants
-#define WATCHDOG_TIMEOUT 8000 // 8 seconds - ESP32 recommended timeout
+#define WATCHDOG_TIMEOUT 30000      // 30 seconds - Longer timeout for mDNS and other network operations
 #define WATCHDOG_FEED_INTERVAL 5000 // Feed watchdog every 5 seconds
 
 // Hardware pins (if needed for future LED integration)
@@ -36,6 +36,40 @@
 // DEBUG_LIGHT_CONTROLLER is defined in platformio.ini build_flags
 #define DEBUG_DEVICE_MANAGER
 #define DEBUG_WIFI_MANAGER
+
+// Error Handling System
+enum class ErrorCode : uint8_t
+{
+    NONE = 0,
+    WIFI_CONNECTION_FAILED = 1,
+    DEVICE_REGISTRATION_FAILED = 2,
+    WEBSOCKET_CONNECTION_FAILED = 3,
+    MEMORY_ALLOCATION_FAILED = 4,
+    LIGHTING_SYSTEM_FAILED = 5,
+    PREFERENCES_ACCESS_FAILED = 6,
+    HTTP_REQUEST_FAILED = 7,
+    JSON_PARSING_FAILED = 8,
+    WATCHDOG_INITIALIZATION_FAILED = 9,
+    CAPTIVE_PORTAL_FAILED = 10,
+    UNKNOWN_ERROR = 255
+};
+
+enum class RecoveryStrategy : uint8_t
+{
+    RETRY_OPERATION = 0,
+    RESTART_COMPONENT = 1,
+    SOFT_RESTART = 2,
+    HARD_RESTART = 3,
+    FACTORY_RESET = 4
+};
+
+// Error recovery configuration
+#define MAX_ERROR_RETRIES 3
+#define ERROR_RECOVERY_DELAY 2000 // 2 seconds between recovery attempts
+#define CRITICAL_ERROR_THRESHOLD 5 // Number of errors before hard restart
+
+// Global function declarations
+extern void globalFeedWatchdog(); // Function to feed watchdog from anywhere in the code
 
 // Storage keys for preferences
 #define DEVICE_PREF_NAMESPACE "palpalette"
