@@ -14,11 +14,133 @@
  */
 
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include "config.h"
 #include "core/WiFiManager.h"
 #include "core/DeviceManager.h"
 #include "core/WSClient.h"
 #include "lighting/LightManager.h"
+
+// Error Handling System
+class ErrorHandler
+{
+private:
+    static ErrorHandler *instance;
+    ErrorCode lastError;
+    uint8_t errorCounts[static_cast<uint8_t>(ErrorCode::UNKNOWN_ERROR) + 1];
+    uint8_t totalErrorCount;
+    unsigned long lastErrorTime;
+
+public:
+    static ErrorHandler *getInstance()
+    {
+        if (!instance)
+        {
+            instance = new ErrorHandler();
+        }
+        return instance;
+    }
+
+    ErrorHandler() : lastError(ErrorCode::NONE), totalErrorCount(0), lastErrorTime(0)
+    {
+        memset(errorCounts, 0, sizeof(errorCounts));
+    }
+
+    void reportError(ErrorCode code, const String &message = "", const String &location = "")
+    {
+        lastError = code;
+        lastErrorTime = millis();
+        totalErrorCount++;
+        errorCounts[static_cast<uint8_t>(code)]++;
+
+        String errorMsg = "❌ ERROR [" + String(static_cast<uint8_t>(code)) + "] " + getErrorName(code);
+        if (message.length() > 0)
+        {
+            errorMsg += ": " + message;
+        }
+        if (location.length() > 0)
+        {
+            errorMsg += " (at: " + location + ")";
+        }
+
+        Serial.println(errorMsg);
+        Serial.println("📊 Total errors: " + String(totalErrorCount) +
+                       ", This error count: " + String(errorCounts[static_cast<uint8_t>(code)]));
+    }
+
+    RecoveryStrategy getRecoveryStrategy(ErrorCode code)
+    {
+        uint8_t count = errorCounts[static_cast<uint8_t>(code)];
+
+        // Progressive recovery based on error frequency
+        switch (code)
+        {
+        case ErrorCode::WIFI_CONNECTION_FAILED:
+            return (count < 3) ? RecoveryStrategy::RETRY_OPERATION : RecoveryStrategy::RESTART_COMPONENT;
+
+        case ErrorCode::WEBSOCKET_CONNECTION_FAILED:
+            return (count < 5) ? RecoveryStrategy::RETRY_OPERATION : RecoveryStrategy::RESTART_COMPONENT;
+
+        case ErrorCode::MEMORY_ALLOCATION_FAILED:
+            return RecoveryStrategy::SOFT_RESTART;
+
+        case ErrorCode::DEVICE_REGISTRATION_FAILED:
+            return (count < 3) ? RecoveryStrategy::RETRY_OPERATION : RecoveryStrategy::SOFT_RESTART;
+
+        case ErrorCode::LIGHTING_SYSTEM_FAILED:
+            return RecoveryStrategy::RESTART_COMPONENT;
+
+        default:
+            if (totalErrorCount > CRITICAL_ERROR_THRESHOLD)
+            {
+                return RecoveryStrategy::HARD_RESTART;
+            }
+            return (count < MAX_ERROR_RETRIES) ? RecoveryStrategy::RETRY_OPERATION : RecoveryStrategy::RESTART_COMPONENT;
+        }
+    }
+
+    String getErrorName(ErrorCode code)
+    {
+        switch (code)
+        {
+        case ErrorCode::NONE:
+            return "NONE";
+        case ErrorCode::WIFI_CONNECTION_FAILED:
+            return "WIFI_CONNECTION_FAILED";
+        case ErrorCode::DEVICE_REGISTRATION_FAILED:
+            return "DEVICE_REGISTRATION_FAILED";
+        case ErrorCode::WEBSOCKET_CONNECTION_FAILED:
+            return "WEBSOCKET_CONNECTION_FAILED";
+        case ErrorCode::MEMORY_ALLOCATION_FAILED:
+            return "MEMORY_ALLOCATION_FAILED";
+        case ErrorCode::LIGHTING_SYSTEM_FAILED:
+            return "LIGHTING_SYSTEM_FAILED";
+        case ErrorCode::PREFERENCES_ACCESS_FAILED:
+            return "PREFERENCES_ACCESS_FAILED";
+        case ErrorCode::HTTP_REQUEST_FAILED:
+            return "HTTP_REQUEST_FAILED";
+        case ErrorCode::JSON_PARSING_FAILED:
+            return "JSON_PARSING_FAILED";
+        case ErrorCode::WATCHDOG_INITIALIZATION_FAILED:
+            return "WATCHDOG_INITIALIZATION_FAILED";
+        case ErrorCode::CAPTIVE_PORTAL_FAILED:
+            return "CAPTIVE_PORTAL_FAILED";
+        default:
+            return "UNKNOWN_ERROR";
+        }
+    }
+
+    bool shouldPerformRecovery()
+    {
+        return (millis() - lastErrorTime > ERROR_RECOVERY_DELAY);
+    }
+
+    ErrorCode getLastError() { return lastError; }
+    uint8_t getTotalErrorCount() { return totalErrorCount; }
+    void clearError() { lastError = ErrorCode::NONE; }
+};
+
+ErrorHandler *ErrorHandler::instance = nullptr;
 
 // Global objects
 WiFiManager wifiManager;
@@ -44,7 +166,11 @@ unsigned long stateChangeTime = 0;
 // Timing variables
 unsigned long lastStatusUpdate = 0;
 unsigned long lastWiFiCheck = 0;
+unsigned long lastWatchdogFeed = 0;
 const unsigned long WIFI_CHECK_INTERVAL = 10000; // 10 seconds
+
+// Watchdog timer variables
+bool watchdogInitialized = false;
 
 // Helper function for repeating strings
 String repeatString(const String &str, int count)
@@ -57,6 +183,113 @@ String repeatString(const String &str, int count)
     return result;
 }
 
+// Global watchdog feeding function - can be called from anywhere
+void globalFeedWatchdog()
+{
+    if (watchdogInitialized)
+    {
+        esp_task_wdt_reset();
+        // Optional: Add yield() to let other tasks run
+        yield();
+    }
+}
+
+// Global cleanup function for emergency shutdowns and resets
+void performGlobalCleanup()
+{
+    Serial.println("🧹 Performing global system cleanup...");
+
+    // Disable watchdog to prevent reset during cleanup
+    disableWatchdog();
+
+    // Clean up WebSocket client
+    if (wsClient != nullptr)
+    {
+        Serial.println("  - Cleaning up WebSocket client");
+        delete wsClient;
+        wsClient = nullptr;
+    }
+
+    // Stop WiFi AP mode if active
+    if (wifiManager.isInAPMode())
+    {
+        Serial.println("  - Stopping WiFi AP mode");
+        wifiManager.stopAPMode();
+    }
+
+    // Disconnect WiFi
+    if (wifiManager.isConnected())
+    {
+        Serial.println("  - Disconnecting WiFi");
+        WiFi.disconnect(true);
+    }
+
+    Serial.println("✅ Global cleanup completed");
+} // Watchdog Timer Management Functions
+bool initializeWatchdog()
+{
+    Serial.println("🐕 Initializing watchdog timer...");
+
+    // Configure watchdog timer
+    esp_err_t result = esp_task_wdt_init(WATCHDOG_TIMEOUT / 1000, true); // Convert to seconds
+
+    if (result != ESP_OK)
+    {
+        Serial.println("❌ Failed to initialize watchdog timer: " + String(result));
+        return false;
+    }
+
+    // Add current task to watchdog
+    result = esp_task_wdt_add(NULL);
+    if (result != ESP_OK)
+    {
+        Serial.println("❌ Failed to add task to watchdog: " + String(result));
+        return false;
+    }
+
+    watchdogInitialized = true;
+    lastWatchdogFeed = millis();
+
+    Serial.println("✅ Watchdog timer initialized successfully");
+    Serial.println("🐕 Timeout: " + String(WATCHDOG_TIMEOUT) + "ms, Feed interval: " + String(WATCHDOG_FEED_INTERVAL) + "ms");
+
+    return true;
+}
+
+void feedWatchdog()
+{
+    if (!watchdogInitialized)
+    {
+        return;
+    }
+
+    unsigned long currentTime = millis();
+    if (currentTime - lastWatchdogFeed >= WATCHDOG_FEED_INTERVAL)
+    {
+        esp_task_wdt_reset();
+        lastWatchdogFeed = currentTime;
+
+        // Only log occasionally to avoid spam
+        static unsigned long lastWatchdogLog = 0;
+        if (currentTime - lastWatchdogLog > 30000) // Log every 30 seconds
+        {
+            Serial.println("🐕 Watchdog fed (system healthy)");
+            lastWatchdogLog = currentTime;
+        }
+    }
+}
+
+void disableWatchdog()
+{
+    if (watchdogInitialized)
+    {
+        Serial.println("🐕 Disabling watchdog timer for cleanup...");
+        esp_task_wdt_delete(NULL);
+        esp_task_wdt_deinit();
+        watchdogInitialized = false;
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -67,6 +300,15 @@ void setup()
     Serial.println("📦 Firmware Version: " + String(FIRMWARE_VERSION));
     Serial.println("🏗 Architecture: Modular Self-Setup");
     Serial.println(repeatString("=", 50));
+
+    // Initialize watchdog timer early in setup
+    if (!initializeWatchdog())
+    {
+        ErrorHandler::getInstance()->reportError(ErrorCode::WATCHDOG_INITIALIZATION_FAILED,
+                                                 "Watchdog timer initialization failed",
+                                                 "setup");
+        Serial.println("⚠ Continuing without watchdog protection");
+    }
 
     // Initialize managers
     Serial.println("\n🔧 Initializing system components...");
@@ -112,6 +354,9 @@ void setup()
 
 void loop()
 {
+    // Feed watchdog timer to prevent resets
+    feedWatchdog();
+
     // Update all managers
     wifiManager.loop();
     lightManager.loop();
@@ -126,10 +371,10 @@ void loop()
     // Periodic tasks
     handlePeriodicTasks();
 
-    // Reset watchdog timer to prevent crashes
+    // Allow other tasks to run and prevent blocking
     yield();
 
-    // Small delay to prevent watchdog issues and reduce memory pressure
+    // Small delay to reduce CPU load and prevent tight loops
     delay(100);
 }
 
@@ -265,9 +510,11 @@ void handleWiFiConnecting()
         // Check for timeout
         if (millis() - connectStartTime > WIFI_CONNECT_TIMEOUT)
         {
-            Serial.println("⏰ WiFi connection timeout, returning to setup mode");
+            ErrorHandler::getInstance()->reportError(ErrorCode::WIFI_CONNECTION_FAILED,
+                                                     "Connection timeout after " + String(WIFI_CONNECT_TIMEOUT / 1000) + " seconds",
+                                                     "handleWiFiConnecting");
             connectStartTime = 0;
-            setState(STATE_WIFI_SETUP);
+            setState(STATE_ERROR);
         }
     }
 }
@@ -286,12 +533,26 @@ void handleDeviceRegistration()
         {
             Serial.println("✅ Device registered with HTTP API");
 
-            // Initialize WebSocket client
-            if (wsClient)
+            // Initialize WebSocket client with proper cleanup
+            if (wsClient != nullptr)
             {
+                Serial.println("🔄 Cleaning up existing WebSocket client");
                 delete wsClient;
+                wsClient = nullptr;
             }
+
             wsClient = new WSClient(&deviceManager, &lightManager);
+
+            // Check allocation success
+            if (wsClient == nullptr)
+            {
+                ErrorHandler::getInstance()->reportError(ErrorCode::MEMORY_ALLOCATION_FAILED,
+                                                         "Failed to allocate WebSocket client",
+                                                         "handleDeviceRegistration");
+                setState(STATE_ERROR);
+                return;
+            }
+
             wsClient->begin(serverUrl);
 
             // Attempt WebSocket connection
@@ -313,12 +574,18 @@ void handleDeviceRegistration()
             }
             else
             {
-                Serial.println("⚠ WebSocket connection failed, will retry...");
+                ErrorHandler::getInstance()->reportError(ErrorCode::WEBSOCKET_CONNECTION_FAILED,
+                                                         "WebSocket connection failed after successful device registration",
+                                                         "handleDeviceRegistration");
+                setState(STATE_ERROR);
             }
         }
         else
         {
-            Serial.println("❌ Device registration failed, will retry...");
+            ErrorHandler::getInstance()->reportError(ErrorCode::DEVICE_REGISTRATION_FAILED,
+                                                     "HTTP registration with server failed",
+                                                     "handleDeviceRegistration");
+            setState(STATE_ERROR);
         }
 
         registrationAttempted = true;
@@ -380,17 +647,93 @@ void handleOperational()
 
 void handleError()
 {
-    static unsigned long lastErrorReport = 0;
-    const unsigned long ERROR_REPORT_INTERVAL = 10000; // 10 seconds
+    ErrorHandler *errorHandler = ErrorHandler::getInstance();
 
-    if (millis() - lastErrorReport > ERROR_REPORT_INTERVAL)
+    // Only process errors if enough time has passed since last error handling
+    if (!errorHandler->shouldPerformRecovery())
     {
-        Serial.println("❌ Device in error state - attempting recovery...");
-        lastErrorReport = millis();
-
-        // Try to recover by going back to WiFi setup
-        setState(STATE_WIFI_SETUP);
+        return;
     }
+
+    ErrorCode lastError = errorHandler->getLastError();
+    RecoveryStrategy strategy = errorHandler->getRecoveryStrategy(lastError);
+
+    Serial.println("🔧 Executing recovery strategy: " + String(static_cast<uint8_t>(strategy)));
+
+    switch (strategy)
+    {
+    case RecoveryStrategy::RETRY_OPERATION:
+        Serial.println("🔄 Retrying operation...");
+        // Try to recover based on current state
+        if (currentState == STATE_WIFI_CONNECTING)
+        {
+            setState(STATE_WIFI_SETUP);
+        }
+        else if (currentState == STATE_DEVICE_REGISTRATION)
+        {
+            setState(STATE_WIFI_CONNECTING);
+        }
+        else
+        {
+            setState(STATE_WIFI_SETUP);
+        }
+        break;
+
+    case RecoveryStrategy::RESTART_COMPONENT:
+        Serial.println("🔄 Restarting affected component...");
+        if (lastError == ErrorCode::WIFI_CONNECTION_FAILED)
+        {
+            wifiManager.stopAPMode();
+            setState(STATE_WIFI_SETUP);
+        }
+        else if (lastError == ErrorCode::WEBSOCKET_CONNECTION_FAILED)
+        {
+            if (wsClient != nullptr)
+            {
+                delete wsClient;
+                wsClient = nullptr;
+            }
+            setState(STATE_DEVICE_REGISTRATION);
+        }
+        else
+        {
+            setState(STATE_WIFI_SETUP);
+        }
+        break;
+
+    case RecoveryStrategy::SOFT_RESTART:
+        Serial.println("🔄 Performing soft restart...");
+        performGlobalCleanup();
+        delay(2000);
+        ESP.restart();
+        break;
+
+    case RecoveryStrategy::HARD_RESTART:
+        Serial.println("💀 Critical errors detected - performing hard restart with factory reset");
+        errorHandler->reportError(ErrorCode::UNKNOWN_ERROR, "Too many critical errors", "handleError");
+        performGlobalCleanup();
+        deviceManager.resetDevice();
+        wifiManager.clearWiFiCredentials();
+        delay(3000);
+        ESP.restart();
+        break;
+
+    case RecoveryStrategy::FACTORY_RESET:
+        Serial.println("🏭 Performing factory reset...");
+        performGlobalCleanup();
+        deviceManager.resetDevice();
+        wifiManager.clearWiFiCredentials();
+        delay(3000);
+        ESP.restart();
+        break;
+
+    default:
+        Serial.println("⚠ Unknown recovery strategy, defaulting to soft restart");
+        setState(STATE_WIFI_SETUP);
+        break;
+    }
+
+    errorHandler->clearError();
 }
 
 void handlePeriodicTasks()
@@ -400,8 +743,10 @@ void handlePeriodicTasks()
     {
         if (currentState >= STATE_DEVICE_REGISTRATION && !wifiManager.isConnected())
         {
-            Serial.println("⚠ WiFi connection lost, attempting recovery...");
-            setState(STATE_WIFI_CONNECTING);
+            ErrorHandler::getInstance()->reportError(ErrorCode::WIFI_CONNECTION_FAILED,
+                                                     "WiFi connection lost during operation",
+                                                     "handlePeriodicTasks");
+            setState(STATE_ERROR);
         }
         lastWiFiCheck = millis();
     }
@@ -481,14 +826,18 @@ void serialEvent()
         }
         else if (command == "reset")
         {
-            Serial.println("🔄 Resetting device...");
+            Serial.println("🔄 Resetting device with proper cleanup...");
+            performGlobalCleanup();
             deviceManager.resetDevice();
             wifiManager.clearWiFiCredentials();
+            delay(1000); // Give time for cleanup
             ESP.restart();
         }
         else if (command == "restart")
         {
-            Serial.println("🔄 Restarting device...");
+            Serial.println("🔄 Restarting device with cleanup...");
+            performGlobalCleanup();
+            delay(1000); // Give time for cleanup
             ESP.restart();
         }
         else if (command == "wifi")

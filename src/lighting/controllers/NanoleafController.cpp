@@ -1,4 +1,5 @@
 #include "NanoleafController.h"
+#include "../../config.h" // Include for globalFeedWatchdog
 
 NanoleafController::NanoleafController()
     : panelCount(0), isConnected(false), lastHeartbeat(0), discoveredDeviceCount(0)
@@ -333,6 +334,7 @@ bool NanoleafController::discoverNanoleaf()
 
     // Give WiFi a moment to fully stabilize
     delay(1000);
+    globalFeedWatchdog(); // Feed watchdog after delay
 
     // Try multiple times to initialize mDNS
     bool mdnsStarted = false;
@@ -348,6 +350,7 @@ bool NanoleafController::discoverNanoleaf()
             if (attempt < 3)
             {
                 delay(2000); // Wait 2 seconds before retry
+                globalFeedWatchdog(); // Feed watchdog after delay
             }
         }
     }
@@ -366,6 +369,9 @@ bool NanoleafController::discoverNanoleaf()
 
     while (retryCount < maxRetries && servicesFound == 0)
     {
+        // Feed watchdog before potentially long operation
+        globalFeedWatchdog();
+        
         servicesFound = MDNS.queryService("nanoleafapi", "tcp");
 
         if (servicesFound > 0)
@@ -378,6 +384,7 @@ bool NanoleafController::discoverNanoleaf()
             if (retryCount < maxRetries)
             {
                 delay(retryDelay);
+                globalFeedWatchdog(); // Feed watchdog after delay
                 retryDelay = min((int)(retryDelay * 1.5), 10000); // Cap at 10 seconds
             }
         }
@@ -460,6 +467,9 @@ bool NanoleafController::requestAuthToken()
 
     while (millis() - startTime < AUTH_TIMEOUT)
     {
+        // Feed watchdog at start of each iteration
+        globalFeedWatchdog();
+        
         attempts++;
 
         int httpResponseCode = authHttp.POST("{}");
@@ -512,6 +522,7 @@ bool NanoleafController::requestAuthToken()
         }
 
         delay(2000); // Wait 2 seconds before trying again
+        globalFeedWatchdog(); // Feed watchdog after delay
     }
 
     authHttp.end();
