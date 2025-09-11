@@ -65,7 +65,7 @@ enum class RecoveryStrategy : uint8_t
 
 // Error recovery configuration
 #define MAX_ERROR_RETRIES 3
-#define ERROR_RECOVERY_DELAY 2000 // 2 seconds between recovery attempts
+#define ERROR_RECOVERY_DELAY 2000  // 2 seconds between recovery attempts
 #define CRITICAL_ERROR_THRESHOLD 5 // Number of errors before hard restart
 
 // Global function declarations
