@@ -20,6 +20,10 @@
 #define MAX_WIFI_RETRY_ATTEMPTS 3
 #define CAPTIVE_PORTAL_TIMEOUT 300000 // 5 minutes
 
+// Watchdog Timer constants
+#define WATCHDOG_TIMEOUT 8000 // 8 seconds - ESP32 recommended timeout
+#define WATCHDOG_FEED_INTERVAL 5000 // Feed watchdog every 5 seconds
+
 // Hardware pins (if needed for future LED integration)
 #define LED_DATA_PIN 2
 #define LED_COUNT 10

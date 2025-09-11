@@ -72,13 +72,13 @@ void WSClient::disconnect()
     if (isConnected)
     {
         Serial.println("🔌 Disconnecting WebSocket...");
-        
+
         // Send close frame properly
         client.close();
-        
+
         // Wait a bit for clean disconnection
         delay(100);
-        
+
         isConnected = false;
         Serial.println("✅ WebSocket disconnected cleanly");
     }

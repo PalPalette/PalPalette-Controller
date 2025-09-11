@@ -147,7 +147,7 @@ void WiFiManager::setupCaptivePortal()
         delete server;
         server = nullptr;
     }
-    
+
     if (dnsServer != nullptr)
     {
         dnsServer->stop();
@@ -451,7 +451,7 @@ void WiFiManager::loop()
         if (millis() - apStartTime > CAPTIVE_PORTAL_TIMEOUT)
         {
             Serial.println("⏰ Captive portal timeout reached, cleaning up and restarting...");
-            
+
             // Proper cleanup before restart
             stopAPMode();
             delay(1000); // Give time for cleanup

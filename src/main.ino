@@ -14,6 +14,7 @@
  */
 
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include "config.h"
 #include "core/WiFiManager.h"
 #include "core/DeviceManager.h"
@@ -44,7 +45,11 @@ unsigned long stateChangeTime = 0;
 // Timing variables
 unsigned long lastStatusUpdate = 0;
 unsigned long lastWiFiCheck = 0;
+unsigned long lastWatchdogFeed = 0;
 const unsigned long WIFI_CHECK_INTERVAL = 10000; // 10 seconds
+
+// Watchdog timer variables
+bool watchdogInitialized = false;
 
 // Helper function for repeating strings
 String repeatString(const String &str, int count)
@@ -61,6 +66,9 @@ String repeatString(const String &str, int count)
 void performGlobalCleanup()
 {
     Serial.println("🧹 Performing global system cleanup...");
+    
+    // Disable watchdog to prevent reset during cleanup
+    disableWatchdog();
     
     // Clean up WebSocket client
     if (wsClient != nullptr)
@@ -83,8 +91,71 @@ void performGlobalCleanup()
         Serial.println("  - Disconnecting WiFi");
         WiFi.disconnect(true);
     }
-    
+
     Serial.println("✅ Global cleanup completed");
+}// Watchdog Timer Management Functions
+bool initializeWatchdog()
+{
+    Serial.println("🐕 Initializing watchdog timer...");
+    
+    // Configure watchdog timer
+    esp_err_t result = esp_task_wdt_init(WATCHDOG_TIMEOUT / 1000, true); // Convert to seconds
+    
+    if (result != ESP_OK)
+    {
+        Serial.println("❌ Failed to initialize watchdog timer: " + String(result));
+        return false;
+    }
+    
+    // Add current task to watchdog
+    result = esp_task_wdt_add(NULL);
+    if (result != ESP_OK)
+    {
+        Serial.println("❌ Failed to add task to watchdog: " + String(result));
+        return false;
+    }
+    
+    watchdogInitialized = true;
+    lastWatchdogFeed = millis();
+    
+    Serial.println("✅ Watchdog timer initialized successfully");
+    Serial.println("🐕 Timeout: " + String(WATCHDOG_TIMEOUT) + "ms, Feed interval: " + String(WATCHDOG_FEED_INTERVAL) + "ms");
+    
+    return true;
+}
+
+void feedWatchdog()
+{
+    if (!watchdogInitialized)
+    {
+        return;
+    }
+    
+    unsigned long currentTime = millis();
+    if (currentTime - lastWatchdogFeed >= WATCHDOG_FEED_INTERVAL)
+    {
+        esp_task_wdt_reset();
+        lastWatchdogFeed = currentTime;
+        
+        // Only log occasionally to avoid spam
+        static unsigned long lastWatchdogLog = 0;
+        if (currentTime - lastWatchdogLog > 30000) // Log every 30 seconds
+        {
+            Serial.println("🐕 Watchdog fed (system healthy)");
+            lastWatchdogLog = currentTime;
+        }
+    }
+}
+
+void disableWatchdog()
+{
+    if (watchdogInitialized)
+    {
+        Serial.println("🐕 Disabling watchdog timer for cleanup...");
+        esp_task_wdt_delete(NULL);
+        esp_task_wdt_deinit();
+        watchdogInitialized = false;
+    }
 }
 
 void setup()
@@ -97,6 +168,12 @@ void setup()
     Serial.println("📦 Firmware Version: " + String(FIRMWARE_VERSION));
     Serial.println("🏗 Architecture: Modular Self-Setup");
     Serial.println(repeatString("=", 50));
+
+    // Initialize watchdog timer early in setup
+    if (!initializeWatchdog())
+    {
+        Serial.println("⚠ Continuing without watchdog protection");
+    }
 
     // Initialize managers
     Serial.println("\n🔧 Initializing system components...");
@@ -142,6 +219,9 @@ void setup()
 
 void loop()
 {
+    // Feed watchdog timer to prevent resets
+    feedWatchdog();
+    
     // Update all managers
     wifiManager.loop();
     lightManager.loop();
@@ -156,10 +236,10 @@ void loop()
     // Periodic tasks
     handlePeriodicTasks();
 
-    // Reset watchdog timer to prevent crashes
+    // Allow other tasks to run and prevent blocking
     yield();
 
-    // Small delay to prevent watchdog issues and reduce memory pressure
+    // Small delay to reduce CPU load and prevent tight loops
     delay(100);
 }
 
@@ -323,9 +403,9 @@ void handleDeviceRegistration()
                 delete wsClient;
                 wsClient = nullptr;
             }
-            
+
             wsClient = new WSClient(&deviceManager, &lightManager);
-            
+
             // Check allocation success
             if (wsClient == nullptr)
             {
@@ -333,7 +413,7 @@ void handleDeviceRegistration()
                 setState(STATE_ERROR);
                 return;
             }
-            
+
             wsClient->begin(serverUrl);
 
             // Attempt WebSocket connection
@@ -430,14 +510,14 @@ void handleError()
     {
         errorCount++;
         Serial.println("❌ Device in error state (attempt " + String(errorCount) + ") - attempting recovery...");
-        
+
         // Perform cleanup before recovery attempt
         if (errorCount > 3)
         {
             Serial.println("🧹 Multiple errors detected, performing global cleanup before recovery");
             performGlobalCleanup();
         }
-        
+
         lastErrorReport = millis();
 
         // Progressive recovery strategy
