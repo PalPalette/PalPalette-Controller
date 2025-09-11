@@ -349,7 +349,7 @@ bool NanoleafController::discoverNanoleaf()
         {
             if (attempt < 3)
             {
-                delay(2000); // Wait 2 seconds before retry
+                delay(2000);          // Wait 2 seconds before retry
                 globalFeedWatchdog(); // Feed watchdog after delay
             }
         }
@@ -371,7 +371,7 @@ bool NanoleafController::discoverNanoleaf()
     {
         // Feed watchdog before potentially long operation
         globalFeedWatchdog();
-        
+
         servicesFound = MDNS.queryService("nanoleafapi", "tcp");
 
         if (servicesFound > 0)
@@ -384,7 +384,7 @@ bool NanoleafController::discoverNanoleaf()
             if (retryCount < maxRetries)
             {
                 delay(retryDelay);
-                globalFeedWatchdog(); // Feed watchdog after delay
+                globalFeedWatchdog();                             // Feed watchdog after delay
                 retryDelay = min((int)(retryDelay * 1.5), 10000); // Cap at 10 seconds
             }
         }
@@ -469,7 +469,7 @@ bool NanoleafController::requestAuthToken()
     {
         // Feed watchdog at start of each iteration
         globalFeedWatchdog();
-        
+
         attempts++;
 
         int httpResponseCode = authHttp.POST("{}");
@@ -521,7 +521,7 @@ bool NanoleafController::requestAuthToken()
             debugLog("Network error: " + String(httpResponseCode));
         }
 
-        delay(2000); // Wait 2 seconds before trying again
+        delay(2000);          // Wait 2 seconds before trying again
         globalFeedWatchdog(); // Feed watchdog after delay
     }
 
