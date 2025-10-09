@@ -532,10 +532,6 @@ bool LightManager::loadConfiguration()
             {
                 config.port = 16021;
             }
-            else if (config.systemType == "wled")
-            {
-                config.port = 80;
-            }
         }
 
         // Create default custom config based on system type
@@ -602,21 +598,6 @@ LightConfig LightManager::createDefaultConfig(const String &systemType)
     {
         config.port = 16021; // Default Nanoleaf port
     }
-    else if (systemType == "wled")
-    {
-        config.port = 80; // Default HTTP port
-    }
-    else if (systemType == "ws2812")
-    {
-        config.port = 0; // Not applicable for direct control
-
-        // Default WS2812 configuration
-        JsonDocument doc;
-        doc["ledPin"] = 2;
-        doc["ledCount"] = 30;
-        doc["brightness"] = 255;
-        config.customConfig = doc.as<JsonObject>();
-    }
 
     return config;
 }
@@ -628,13 +609,8 @@ void LightManager::loop()
         return;
     }
 
-    // Handle WS2812 animations if using WS2812 controller
-    if (config.systemType == "ws2812")
-    {
-        // This would call the animation loop for WS2812Controller
-        // We need to add this method to the base class or cast
-        // For now, this is a placeholder
-    }
+    // Nanoleaf doesn't require continuous loop processing
+    // All operations are request-response based
 }
 
 bool LightManager::createController(const String &systemType)
@@ -686,17 +662,7 @@ JsonObject LightManager::createDefaultCustomConfig(const String &systemType)
 {
     JsonDocument doc;
 
-    if (systemType == "ws2812")
-    {
-        doc["ledPin"] = 2;
-        doc["ledCount"] = 30;
-        doc["brightness"] = 255;
-    }
-    else if (systemType == "wled")
-    {
-        // WLED doesn't need special custom config
-    }
-    else if (systemType == "nanoleaf")
+    if (systemType == "nanoleaf")
     {
         // Nanoleaf config will be auto-discovered
     }

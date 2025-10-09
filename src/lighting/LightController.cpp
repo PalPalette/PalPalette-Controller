@@ -1,13 +1,9 @@
 #include "LightController.h"
 #include "controllers/NanoleafController.h"
-#include "controllers/WLEDController.h"
-#include "controllers/WS2812Controller.h"
 
 // Static array of supported systems
 static String supportedSystems[] = {
-    "nanoleaf",
-    "wled",
-    "ws2812"};
+    "nanoleaf"};
 
 static const int SUPPORTED_SYSTEM_COUNT = sizeof(supportedSystems) / sizeof(supportedSystems[0]);
 
@@ -24,19 +20,9 @@ LightController *LightControllerFactory::createController(const String &systemTy
         Serial.println("🍃 Creating Nanoleaf controller");
         return new NanoleafController();
     }
-    else if (type == "wled")
-    {
-        Serial.println("💡 Creating WLED controller");
-        return new WLEDController();
-    }
-    else if (type == "ws2812")
-    {
-        Serial.println("🌈 Creating WS2812 controller");
-        return new WS2812Controller();
-    }
     else
     {
-        Serial.println("❌ Unknown system type: " + type);
+        Serial.println("❌ Unknown system type: " + type + " (only 'nanoleaf' is supported)");
         return nullptr;
     }
 }
