@@ -198,7 +198,23 @@ bool WSClient::shouldSendHeartbeat()
 
 bool WSClient::shouldRetryConnection()
 {
-    return (millis() - lastConnectionAttempt) > REGISTRATION_RETRY_INTERVAL;
+    // Use exponential backoff for WebSocket reconnection attempts
+    static int retryAttempts = 0;
+    const unsigned long MAX_RETRY_INTERVAL = 30000; // Max 30 seconds
+
+    unsigned long baseInterval = REGISTRATION_RETRY_INTERVAL;
+    unsigned long exponentialInterval = baseInterval * (1UL << retryAttempts);
+    unsigned long retryInterval = (exponentialInterval < MAX_RETRY_INTERVAL) ? exponentialInterval : MAX_RETRY_INTERVAL;
+
+    if ((millis() - lastConnectionAttempt) > retryInterval)
+    {
+        retryAttempts++;
+        if (retryAttempts > 5)
+            retryAttempts = 5; // Cap at 2^5 = 32 * base interval
+        return true;
+    }
+
+    return false;
 }
 
 void WSClient::onMessageCallback(WebsocketsMessage message)
@@ -267,12 +283,24 @@ void WSClient::onEventsCallback(WebsocketsEvent event, String data)
     case WebsocketsEvent::ConnectionOpened:
         Serial.println("🔗 WebSocket connection opened");
         isConnected = true;
+        lastConnectionAttempt = millis(); // Reset retry timer on successful connection
         break;
 
     case WebsocketsEvent::ConnectionClosed:
         Serial.println("🔌 WebSocket connection closed");
+        if (!data.isEmpty())
+        {
+            Serial.println("📄 Close data: " + data);
+        }
+
+        // Log memory status when connection closes unexpectedly
+        Serial.printf("💾 Free heap at disconnect: %d bytes\n", ESP.getFreeHeap());
+
         isConnected = false;
         deviceManager->setOnlineStatus(false);
+
+        // Set retry timer to attempt reconnection
+        lastConnectionAttempt = millis();
         break;
 
     case WebsocketsEvent::GotPing:
@@ -281,6 +309,10 @@ void WSClient::onEventsCallback(WebsocketsEvent event, String data)
 
     case WebsocketsEvent::GotPong:
         Serial.println("🏓 Pong received from server");
+        break;
+
+    default:
+        Serial.println("❓ Unknown WebSocket event: " + String((int)event));
         break;
     }
 }

@@ -25,14 +25,18 @@ private:
     DeviceInfo deviceInfo;
     unsigned long lastStatusUpdate;
 
+    void generateMinimalDeviceInfo();
     void generateDeviceInfo();
     bool saveDeviceInfo();
     bool loadDeviceInfo();
+    String generateUUIDFromMAC(const String &macAddress);
+    bool isValidLightingSystemType(const String &systemType);
 
 public:
     DeviceManager();
 
     void begin();
+    bool registerMinimalWithServer(const String &serverUrl);
     bool registerWithServer(const String &serverUrl);
     bool updateStatus(const String &serverUrl);
     void setProvisioned(bool provisioned);

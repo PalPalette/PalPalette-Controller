@@ -8,16 +8,19 @@
 // Default configuration values
 #define DEFAULT_AP_SSID "PalPalette-Setup"
 #define DEFAULT_AP_PASSWORD "setup123"
-#define DEFAULT_SERVER_URL "ws://192.168.178.64:3001/ws" //"ws://cides06.gm.fh-koeln.de:3001/ws"
+#define DEFAULT_SERVER_URL "ws://192.168.178.66:3001/ws" //"ws://cides06.gm.fh-koeln.de:3001/ws"
 
 // Timing constants
 #define WIFI_CONNECT_TIMEOUT 30000       // 30 seconds
 #define HEARTBEAT_INTERVAL 30000         // 30 seconds
-#define REGISTRATION_RETRY_INTERVAL 5000 // 5 seconds
+#define REGISTRATION_RETRY_INTERVAL 5000 // 5 seconds (initial retry delay)
 #define STATUS_UPDATE_INTERVAL 60000     // 1 minute
 
-// Network constants
+// Network constants with exponential backoff
 #define MAX_WIFI_RETRY_ATTEMPTS 3
+#define INITIAL_RETRY_DELAY 1000      // 1 second initial delay
+#define MAX_RETRY_DELAY 60000         // 60 seconds maximum delay
+#define BACKOFF_MULTIPLIER 2          // Double delay each attempt
 #define CAPTIVE_PORTAL_TIMEOUT 300000 // 5 minutes
 
 // Watchdog Timer constants

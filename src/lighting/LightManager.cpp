@@ -616,7 +616,15 @@ void LightManager::loop()
 bool LightManager::createController(const String &systemType)
 {
     currentController = LightControllerFactory::createController(systemType);
-    return (currentController != nullptr);
+    if (!currentController)
+    {
+        Serial.println("❌ Failed to create lighting controller for type: " + systemType);
+        Serial.println("💡 This could be due to memory allocation failure or unsupported system type");
+        return false;
+    }
+
+    Serial.println("✅ Successfully created " + systemType + " controller");
+    return true;
 }
 
 void LightManager::cleanupController()

@@ -37,6 +37,12 @@ public:
         if (!instance)
         {
             instance = new ErrorHandler();
+            if (!instance)
+            {
+                // Critical failure - cannot allocate error handler
+                Serial.println("💀 CRITICAL: Failed to allocate ErrorHandler - system cannot continue");
+                ESP.restart();
+            }
         }
         return instance;
     }
@@ -142,11 +148,67 @@ public:
 
 ErrorHandler *ErrorHandler::instance = nullptr;
 
+// Exponential Backoff System for Network Retries
+class ExponentialBackoff
+{
+private:
+    unsigned long initialDelay;
+    unsigned long maxDelay;
+    unsigned long currentDelay;
+    unsigned int multiplier;
+    unsigned long lastAttemptTime;
+    int attemptCount;
+
+public:
+    ExponentialBackoff(unsigned long initial = INITIAL_RETRY_DELAY,
+                       unsigned long maximum = MAX_RETRY_DELAY,
+                       unsigned int mult = BACKOFF_MULTIPLIER)
+        : initialDelay(initial), maxDelay(maximum), multiplier(mult),
+          currentDelay(initial), lastAttemptTime(0), attemptCount(0) {}
+
+    bool shouldRetry()
+    {
+        unsigned long now = millis();
+        if (now - lastAttemptTime >= currentDelay)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    void recordAttempt()
+    {
+        lastAttemptTime = millis();
+        attemptCount++;
+
+        // Calculate next delay with exponential backoff
+        currentDelay = min(currentDelay * multiplier, maxDelay);
+
+        Serial.println("📡 Network attempt #" + String(attemptCount) +
+                       ", next retry in " + String(currentDelay / 1000) + " seconds");
+    }
+
+    void reset()
+    {
+        currentDelay = initialDelay;
+        lastAttemptTime = 0;
+        attemptCount = 0;
+    }
+
+    int getAttemptCount() { return attemptCount; }
+    unsigned long getCurrentDelay() { return currentDelay; }
+};
+
 // Global objects
 WiFiManager wifiManager;
 DeviceManager deviceManager;
 LightManager lightManager;
 WSClient *wsClient = nullptr;
+
+// Network retry backoff instances
+ExponentialBackoff wifiRetryBackoff(2000, 30000, 2);    // WiFi: 2s -> 4s -> 8s -> 16s -> 30s
+ExponentialBackoff wsRetryBackoff(1000, 60000, 2);      // WebSocket: 1s -> 2s -> 4s -> 8s -> 16s -> 32s -> 60s
+ExponentialBackoff registrationBackoff(3000, 45000, 2); // Registration: 3s -> 6s -> 12s -> 24s -> 45s
 
 // State management
 enum DeviceState
@@ -176,11 +238,26 @@ bool watchdogInitialized = false;
 String repeatString(const String &str, int count)
 {
     String result = "";
+    result.reserve(str.length() * count); // Pre-allocate memory to avoid fragmentation
     for (int i = 0; i < count; i++)
     {
         result += str;
     }
     return result;
+}
+
+// Memory health checking function
+bool isMemoryHealthy()
+{
+    size_t freeHeap = ESP.getFreeHeap();
+    const size_t MIN_SAFE_HEAP = 10000; // 10KB minimum for safe operation
+
+    if (freeHeap < MIN_SAFE_HEAP)
+    {
+        Serial.println("⚠️ LOW MEMORY WARNING: " + String(freeHeap) + " bytes free (minimum: " + String(MIN_SAFE_HEAP) + ")");
+        return false;
+    }
+    return true;
 }
 
 // Global watchdog feeding function - can be called from anywhere
@@ -352,6 +429,37 @@ void setup()
     Serial.println("🔄 Starting main operation loop...\n");
 }
 
+// Get optimal loop delay based on current device state
+unsigned long getOptimalLoopDelay()
+{
+    switch (currentState)
+    {
+    case STATE_INIT:
+        return 50; // Fast initialization
+
+    case STATE_WIFI_SETUP:
+        return 100; // Moderate for captive portal handling
+
+    case STATE_WIFI_CONNECTING:
+        return 500; // Slower during connection attempts
+
+    case STATE_DEVICE_REGISTRATION:
+        return 250; // Moderate for registration process
+
+    case STATE_WAITING_FOR_CLAIM:
+        return 1000; // Slow when just waiting
+
+    case STATE_OPERATIONAL:
+        return 200; // Moderate for normal operation
+
+    case STATE_ERROR:
+        return 2000; // Very slow during error recovery
+
+    default:
+        return 100; // Safe default
+    }
+}
+
 void loop()
 {
     // Feed watchdog timer to prevent resets
@@ -374,8 +482,8 @@ void loop()
     // Allow other tasks to run and prevent blocking
     yield();
 
-    // Small delay to reduce CPU load and prevent tight loops
-    delay(100);
+    // Dynamic delay based on current state to optimize performance
+    unsigned long loopDelay = getOptimalLoopDelay();
 }
 
 void setState(DeviceState newState)
@@ -480,16 +588,22 @@ void handleWiFiSetup()
 void handleWiFiConnecting()
 {
     static unsigned long connectStartTime = 0;
+    static bool attemptInProgress = false;
 
-    if (connectStartTime == 0)
+    // Start first attempt immediately
+    if (!attemptInProgress)
     {
         connectStartTime = millis();
-        Serial.println("📶 Attempting WiFi connection...");
+        attemptInProgress = true;
+        wifiRetryBackoff.recordAttempt();
+        Serial.println("📶 Attempting WiFi connection (attempt #" + String(wifiRetryBackoff.getAttemptCount()) + ")...");
     }
 
     if (wifiManager.connectToWiFi())
     {
-        // WiFiManager already prints connection success message
+        // Success! Reset backoff and proceed
+        wifiRetryBackoff.reset();
+        attemptInProgress = false;
 
         // Now that WiFi is connected, initialize lighting system with saved configuration
         Serial.println("🔄 WiFi connected - initializing lighting system with saved configuration...");
@@ -502,18 +616,37 @@ void handleWiFiConnecting()
             Serial.println("📝 No saved lighting configuration found - will wait for mobile app setup");
         }
 
-        connectStartTime = 0;
         setState(STATE_DEVICE_REGISTRATION);
     }
     else
     {
-        // Check for timeout
+        // Check if we should retry with exponential backoff
+        if (wifiRetryBackoff.shouldRetry())
+        {
+            // Too many failed attempts?
+            if (wifiRetryBackoff.getAttemptCount() >= MAX_WIFI_RETRY_ATTEMPTS)
+            {
+                ErrorHandler::getInstance()->reportError(ErrorCode::WIFI_CONNECTION_FAILED,
+                                                         "Max WiFi retry attempts reached (" + String(MAX_WIFI_RETRY_ATTEMPTS) + ")",
+                                                         "handleWiFiConnecting");
+                wifiRetryBackoff.reset();
+                attemptInProgress = false;
+                setState(STATE_ERROR);
+                return;
+            }
+
+            // Try again
+            attemptInProgress = false;
+        }
+
+        // Also check for overall timeout
         if (millis() - connectStartTime > WIFI_CONNECT_TIMEOUT)
         {
             ErrorHandler::getInstance()->reportError(ErrorCode::WIFI_CONNECTION_FAILED,
-                                                     "Connection timeout after " + String(WIFI_CONNECT_TIMEOUT / 1000) + " seconds",
+                                                     "WiFi connection timeout after " + String(WIFI_CONNECT_TIMEOUT / 1000) + " seconds",
                                                      "handleWiFiConnecting");
-            connectStartTime = 0;
+            wifiRetryBackoff.reset();
+            attemptInProgress = false;
             setState(STATE_ERROR);
         }
     }
@@ -522,16 +655,23 @@ void handleWiFiConnecting()
 void handleDeviceRegistration()
 {
     static bool registrationAttempted = false;
+    static bool registrationSuccessful = false;
+
+    // If registration was already successful, don't retry
+    if (registrationSuccessful)
+    {
+        return;
+    }
 
     if (!registrationAttempted)
     {
-        Serial.println("📡 Starting device registration process...");
+        Serial.println("📡 Starting minimal device registration process...");
 
-        // First register with HTTP API
+        // First perform minimal registration with HTTP API (only MAC address)
         String serverUrl = wifiManager.getServerURL();
-        if (deviceManager.registerWithServer(serverUrl))
+        if (deviceManager.registerMinimalWithServer(serverUrl))
         {
-            Serial.println("✅ Device registered with HTTP API");
+            Serial.println("✅ Device registered minimally with HTTP API");
 
             // Initialize WebSocket client with proper cleanup
             if (wsClient != nullptr)
@@ -539,6 +679,16 @@ void handleDeviceRegistration()
                 Serial.println("🔄 Cleaning up existing WebSocket client");
                 delete wsClient;
                 wsClient = nullptr;
+            }
+
+            // Check memory health before allocation
+            if (!isMemoryHealthy())
+            {
+                ErrorHandler::getInstance()->reportError(ErrorCode::MEMORY_ALLOCATION_FAILED,
+                                                         "Insufficient memory for WebSocket client allocation",
+                                                         "handleDeviceRegistration");
+                setState(STATE_ERROR);
+                return;
             }
 
             wsClient = new WSClient(&deviceManager, &lightManager);
@@ -559,6 +709,7 @@ void handleDeviceRegistration()
             if (wsClient->connect())
             {
                 Serial.println("✅ WebSocket connection established");
+                registrationSuccessful = true; // Mark as successful
 
                 // Check provisioning status after registration response
                 if (deviceManager.isProvisioned())
@@ -591,9 +742,10 @@ void handleDeviceRegistration()
         registrationAttempted = true;
     }
 
-    // Reset registration attempt flag after delay
-    if (millis() - stateChangeTime > REGISTRATION_RETRY_INTERVAL)
+    // Only reset registration attempt flag after delay if it failed (not successful)
+    if (!registrationSuccessful && millis() - stateChangeTime > REGISTRATION_RETRY_INTERVAL)
     {
+        Serial.println("⏰ Retrying device registration after failure...");
         registrationAttempted = false;
     }
 }
@@ -752,7 +904,12 @@ void handlePeriodicTasks()
     }
 
     // Update device status periodically (if registered and connected)
-    if (currentState >= STATE_DEVICE_REGISTRATION && deviceManager.shouldUpdateStatus())
+    // Add grace period after registration to allow backend to process
+    const unsigned long REGISTRATION_GRACE_PERIOD = 10000; // 10 seconds
+    bool pastGracePeriod = (currentState > STATE_DEVICE_REGISTRATION) ||
+                           (millis() - stateChangeTime > REGISTRATION_GRACE_PERIOD);
+
+    if (currentState >= STATE_DEVICE_REGISTRATION && pastGracePeriod && deviceManager.shouldUpdateStatus())
     {
         if (wifiManager.isConnected())
         {
@@ -760,6 +917,10 @@ void handlePeriodicTasks()
             if (deviceManager.updateStatus(serverUrl))
             {
                 Serial.println("📊 Device status updated successfully");
+            }
+            else
+            {
+                Serial.println("⚠ Device status update failed - backend may not be ready yet");
             }
         }
     }

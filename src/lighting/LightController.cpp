@@ -18,7 +18,13 @@ LightController *LightControllerFactory::createController(const String &systemTy
     if (type == "nanoleaf")
     {
         Serial.println("🍃 Creating Nanoleaf controller");
-        return new NanoleafController();
+        NanoleafController *controller = new NanoleafController();
+        if (!controller)
+        {
+            Serial.println("❌ Failed to allocate NanoleafController - insufficient memory");
+            return nullptr;
+        }
+        return controller;
     }
     else
     {
