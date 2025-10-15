@@ -1,7 +1,9 @@
 #include "WSClient.h"
 
 WSClient::WSClient(DeviceManager *devManager, LightManager *lightMgr)
-    : deviceManager(devManager), lightManager(lightMgr), isConnected(false), lastHeartbeat(0), lastConnectionAttempt(0)
+    : deviceManager(devManager), lightManager(lightMgr), isConnected(false),
+      lastHeartbeat(0), lastPongReceived(0), lastConnectionAttempt(0),
+      retryAttempts(0), lastRetryReset(millis())
 {
 }
 
@@ -44,6 +46,10 @@ bool WSClient::connect()
     }
 
     Serial.println("🔌 Attempting WebSocket connection to: " + serverUrl);
+    Serial.printf("🔧 Free heap before connection: %d bytes\n", ESP.getFreeHeap());
+
+    // Update attempt time before trying to connect
+    lastConnectionAttempt = millis();
 
     bool connected = client.connect(serverUrl);
 
@@ -51,18 +57,27 @@ bool WSClient::connect()
     {
         Serial.println("✅ WebSocket connected successfully!");
         isConnected = true;
-        lastConnectionAttempt = millis();
+
+        // Initialize heartbeat timer
+        lastHeartbeat = millis();
 
         // Register device immediately after connection
-        registerDevice();
+        if (registerDevice())
+        {
+            Serial.println("📋 Device registration message sent successfully");
+        }
+        else
+        {
+            Serial.println("⚠ Device registration message failed to send");
+        }
 
         return true;
     }
     else
     {
         Serial.println("❌ WebSocket connection failed");
+        Serial.printf("🔧 Free heap after failed connection: %d bytes\n", ESP.getFreeHeap());
         isConnected = false;
-        lastConnectionAttempt = millis();
         return false;
     }
 }
@@ -72,6 +87,7 @@ void WSClient::disconnect()
     if (isConnected)
     {
         Serial.println("🔌 Disconnecting WebSocket...");
+        Serial.printf("🔧 Free heap before disconnect: %d bytes\n", ESP.getFreeHeap());
 
         // Send close frame properly
         client.close();
@@ -80,32 +96,60 @@ void WSClient::disconnect()
         delay(100);
 
         isConnected = false;
+        deviceManager->setOnlineStatus(false);
+
+        Serial.printf("🔧 Free heap after disconnect: %d bytes\n", ESP.getFreeHeap());
         Serial.println("✅ WebSocket disconnected cleanly");
     }
 }
 
 bool WSClient::isClientConnected()
 {
-    return isConnected && client.available();
+    // Check both our internal state and the client's actual connection state
+    bool clientAvailable = client.available();
+
+    // If client reports unavailable but we think we're connected, update our state
+    if (isConnected && !clientAvailable)
+    {
+        Serial.println("⚠ WebSocket client reports unavailable - updating connection state");
+        isConnected = false;
+        deviceManager->setOnlineStatus(false);
+    }
+
+    return isConnected && clientAvailable;
 }
 
 void WSClient::loop()
 {
     if (isConnected)
     {
+        // Poll for WebSocket messages and events
         client.poll();
 
-        // Send heartbeat if needed
+        // Send heartbeat if needed (every 30 seconds per backend requirements)
         if (shouldSendHeartbeat())
         {
             sendHeartbeat();
         }
+
+        // Check for connection health - if no pong received for too long, assume disconnected
+        // This helps detect silent connection drops
+        unsigned long timeSinceLastPong = millis() - lastPongReceived;
+        unsigned long maxPongWait = HEARTBEAT_INTERVAL * 3; // 90 seconds max without pong
+
+        if (lastPongReceived > 0 && timeSinceLastPong > maxPongWait)
+        {
+            Serial.println("⚠ No pong response for " + String(timeSinceLastPong / 1000) + "s - connection may be stale");
+            Serial.println("🔄 Forcing WebSocket reconnection");
+            disconnect();
+        }
     }
     else
     {
-        // Try to reconnect if needed
+        // Try to reconnect if needed with exponential backoff
         if (shouldRetryConnection())
         {
+            Serial.println("🔄 Attempting WebSocket reconnection...");
             connect();
         }
     }
@@ -113,26 +157,30 @@ void WSClient::loop()
 
 void WSClient::sendHeartbeat()
 {
-    if (isClientConnected())
+    if (!isClientConnected())
     {
-        client.ping();
-        lastHeartbeat = millis();
-        Serial.println("💓 Heartbeat sent");
+        Serial.println("⚠ Cannot send heartbeat - WebSocket not connected");
+        return;
+    }
 
-        // Update device online status
-        deviceManager->setOnlineStatus(true);
+    // Send WebSocket ping frame
+    client.ping();
+    lastHeartbeat = millis();
+    Serial.println("💓 Heartbeat sent");
 
-        // Send periodic status updates every 10 heartbeats (roughly every 5 minutes if heartbeat is every 30 seconds)
-        static int heartbeatCount = 0;
-        heartbeatCount++;
+    // Update device online status
+    deviceManager->setOnlineStatus(true);
 
-        if (heartbeatCount >= 10)
-        {
-            heartbeatCount = 0;
-            Serial.println("📊 Sending periodic status updates...");
-            sendDeviceStatus();
-            sendLightingSystemStatus();
-        }
+    // Send periodic status updates every 10 heartbeats (roughly every 5 minutes if heartbeat is every 30 seconds)
+    static int heartbeatCount = 0;
+    heartbeatCount++;
+
+    if (heartbeatCount >= 10)
+    {
+        heartbeatCount = 0;
+        Serial.println("📊 Sending periodic status updates...");
+        sendDeviceStatus();
+        sendLightingSystemStatus();
     }
 }
 
@@ -198,9 +246,19 @@ bool WSClient::shouldSendHeartbeat()
 
 bool WSClient::shouldRetryConnection()
 {
-    // Use exponential backoff for WebSocket reconnection attempts
-    static int retryAttempts = 0;
-    const unsigned long MAX_RETRY_INTERVAL = 30000; // Max 30 seconds
+    const unsigned long MAX_RETRY_INTERVAL = 30000;    // Max 30 seconds
+    const unsigned long RETRY_RESET_INTERVAL = 300000; // Reset retry count after 5 minutes of failures
+
+    // Reset retry attempts if we've been disconnected for a long time
+    if (millis() - lastRetryReset > RETRY_RESET_INTERVAL)
+    {
+        if (retryAttempts > 0)
+        {
+            Serial.println("🔄 Resetting WebSocket retry attempts after prolonged disconnection");
+            retryAttempts = 0;
+        }
+        lastRetryReset = millis();
+    }
 
     unsigned long baseInterval = REGISTRATION_RETRY_INTERVAL;
     unsigned long exponentialInterval = baseInterval * (1UL << retryAttempts);
@@ -211,6 +269,9 @@ bool WSClient::shouldRetryConnection()
         retryAttempts++;
         if (retryAttempts > 5)
             retryAttempts = 5; // Cap at 2^5 = 32 * base interval
+
+        Serial.println("🔄 WebSocket retry attempt #" + String(retryAttempts) +
+                       ", next retry in " + String((retryInterval * 2) / 1000) + "s");
         return true;
     }
 
@@ -265,6 +326,11 @@ void WSClient::onMessageCallback(WebsocketsMessage message)
         {
             handleFactoryReset(doc);
         }
+        else if (event == "deviceStatusAck")
+        {
+            // Backend acknowledges our device status update - this is expected
+            Serial.println("✅ Device status acknowledged by server");
+        }
         else
         {
             Serial.println("⚠ Unknown event type: " + event);
@@ -284,6 +350,13 @@ void WSClient::onEventsCallback(WebsocketsEvent event, String data)
         Serial.println("🔗 WebSocket connection opened");
         isConnected = true;
         lastConnectionAttempt = millis(); // Reset retry timer on successful connection
+        lastPongReceived = millis();      // Initialize pong timer to prevent immediate timeout
+
+        // Reset retry attempts counter - connection is successful
+        retryAttempts = 0;
+        lastRetryReset = millis();
+
+        Serial.println("✅ WebSocket connection established successfully (retry attempts reset)");
         break;
 
     case WebsocketsEvent::ConnectionClosed:
@@ -309,6 +382,8 @@ void WSClient::onEventsCallback(WebsocketsEvent event, String data)
 
     case WebsocketsEvent::GotPong:
         Serial.println("🏓 Pong received from server");
+        // Update pong received time to track connection health
+        lastPongReceived = millis();
         break;
 
     default:
@@ -474,6 +549,22 @@ void WSClient::handleLightingSystemConfig(JsonDocument &doc)
             if (success)
             {
                 Serial.println("✅ Nanoleaf system configured successfully via mDNS discovery!");
+
+                // Send pre-auth status update so frontend can prompt user
+                {
+                    JsonDocument statusDoc;
+                    statusDoc["event"] = "lightingSystemStatus";
+                    JsonObject data = statusDoc["data"].to<JsonObject>();
+                    data["deviceId"] = deviceManager->getDeviceId();
+                    data["systemType"] = systemType;
+                    data["status"] = "authentication_required";
+                    data["details"] = "Press the button on your Nanoleaf controller.";
+                    data["lastTest"] = millis();
+                    String msg;
+                    serializeJson(statusDoc, msg);
+                    Serial.println("📤 Sending pre-auth lighting status: " + msg);
+                    sendMessage(msg);
+                }
 
                 // Immediately start authentication process (which includes mDNS discovery)
                 Serial.println("🔐 Starting Nanoleaf mDNS discovery and authentication...");
@@ -827,45 +918,55 @@ void WSClient::sendLightingSystemStatus()
         return;
     }
 
+    // Get lighting system status/config for backend schema
+    String systemType = lightManager->getCurrentSystemType();
+    if (systemType.length() == 0 || systemType == "none")
+    {
+        Serial.println("📋 Skipping lighting system status - no lighting system configured yet");
+        return;
+    }
+
     Serial.println("📊 Sending lighting system status update...");
 
     JsonDocument statusDoc;
     statusDoc["event"] = "lightingSystemStatus";
-    statusDoc["data"]["deviceId"] = deviceManager->getDeviceId();
-    statusDoc["data"]["timestamp"] = millis();
+    JsonObject data = statusDoc["data"].to<JsonObject>();
+    data["deviceId"] = deviceManager->getDeviceId();
+    data["systemType"] = systemType;
 
-    // Get lighting system status - check if system type is configured
-    String systemType = lightManager->getCurrentSystemType();
-    bool hasLightingSystem = (systemType.length() > 0 && systemType != "none");
-
-    if (hasLightingSystem)
+    // Status: working, authentication_required, error, unknown
+    String status = "unknown";
+    String details = "";
+    if (lightManager->isReady())
     {
-        statusDoc["data"]["hasLightingSystem"] = true;
-        statusDoc["data"]["isReady"] = lightManager->isReady();
-        statusDoc["data"]["systemType"] = systemType;
-
-        // Get status from the controller - if ready, show as connected, otherwise show actual status
-        String statusMessage = lightManager->getStatus();
-        if (lightManager->isReady() && statusMessage == "Disconnected")
-        {
-            statusMessage = "Connected and Ready";
-        }
-        statusDoc["data"]["status"] = statusMessage;
-
-        // Get capabilities if available
-        JsonObject capabilities = lightManager->getCapabilities();
-        if (!capabilities.isNull())
-        {
-            statusDoc["data"]["capabilities"] = capabilities;
-        }
+        status = "working";
+    }
+    else if (lightManager->requiresUserAuthentication())
+    {
+        status = "authentication_required";
+        details = "User action required for authentication.";
     }
     else
     {
-        statusDoc["data"]["hasLightingSystem"] = false;
-        statusDoc["data"]["isReady"] = false;
-        statusDoc["data"]["systemType"] = "none";
-        statusDoc["data"]["status"] = "No lighting system configured";
+        String s = lightManager->getStatus();
+        if (s == "error" || s == "Error" || s == "failed")
+        {
+            status = "error";
+            details = s;
+        }
+        else
+        {
+            status = s.length() > 0 ? s : "unknown";
+        }
     }
+    data["status"] = status;
+    if (details.length() > 0)
+    {
+        data["details"] = details;
+    }
+
+    // lastTest: use millis() as a placeholder, or get from LightManager if available
+    data["lastTest"] = millis();
 
     String message;
     serializeJson(statusDoc, message);
@@ -932,6 +1033,13 @@ void WSClient::handleFactoryReset(JsonDocument &doc)
     if (deviceManager)
     {
         deviceManager->resetDevice();
+    }
+
+    // Also reset lighting system configuration (Nanoleaf auth tokens, etc.)
+    if (lightManager)
+    {
+        Serial.println("🔄 Resetting lighting system configuration...");
+        lightManager->resetConfiguration();
     }
 
     // Reset will restart the device, so this code won't be reached

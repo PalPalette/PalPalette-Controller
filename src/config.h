@@ -82,5 +82,6 @@ extern void globalFeedWatchdog(); // Function to feed watchdog from anywhere in 
 #define PREF_DEVICE_ID "device_id"
 #define PREF_IS_PROVISIONED "provisioned"
 #define PREF_MAC_ADDRESS "mac_addr"
+#define PREF_PAIRING_CODE "pairing_code"
 
 #endif

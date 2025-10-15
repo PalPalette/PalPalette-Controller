@@ -16,6 +16,8 @@ private:
     DNSServer *dnsServer;
     String savedSSID;
     String savedPassword;
+    String cachedServerURL;
+    bool serverURLCached;
     bool isAPMode;
     unsigned long apStartTime;
 

@@ -1,3 +1,4 @@
+#include "../lighting/LightManager.h"
 #include "DeviceManager.h"
 #include "config.h"
 #include <HTTPClient.h>
@@ -177,6 +178,12 @@ bool DeviceManager::saveDeviceInfo()
     preferences.putString(PREF_MAC_ADDRESS, deviceInfo.macAddress);
     preferences.putBool(PREF_IS_PROVISIONED, deviceInfo.isProvisioned);
 
+    // Save server-provided pairing code
+    if (deviceInfo.pairingCode.length() > 0)
+    {
+        preferences.putString(PREF_PAIRING_CODE, deviceInfo.pairingCode);
+    }
+
     Serial.println("💾 Device info saved");
     return true;
 }
@@ -196,25 +203,13 @@ bool DeviceManager::loadDeviceInfo()
     deviceInfo.firmwareVersion = FIRMWARE_VERSION;
     deviceInfo.isOnline = false;
 
-    // Regenerate pairing code if needed
-    if (!deviceInfo.isProvisioned)
+    // Load pairing code from server (stored during registration)
+    // Don't generate local pairing codes - server provides authoritative codes
+    deviceInfo.pairingCode = preferences.getString(PREF_PAIRING_CODE, "");
+    if (!deviceInfo.isProvisioned && deviceInfo.pairingCode.length() == 0)
     {
-        String macAddr = deviceInfo.macAddress;
-        macAddr.replace(":", "");
-        String pairingBase = macAddr.substring(6);
+        // No stored pairing code yet - will be assigned during server registration
         deviceInfo.pairingCode = "";
-        for (int i = 0; i < 6; i++)
-        {
-            char c = pairingBase[i];
-            if (c >= '0' && c <= '9')
-            {
-                deviceInfo.pairingCode += c;
-            }
-            else
-            {
-                deviceInfo.pairingCode += String((c >= 'A' ? c - 'A' + 1 : c - 'a' + 1) % 10);
-            }
-        }
     }
 
     Serial.println("📂 Device info loaded from preferences");
@@ -525,7 +520,7 @@ bool DeviceManager::registerWithServer(const String &serverUrl)
     }
 }
 
-bool DeviceManager::updateStatus(const String &serverUrl)
+bool DeviceManager::updateStatus(const String &serverUrl, LightManager *lightManager)
 {
     if (serverUrl.length() == 0 || deviceInfo.deviceId.length() == 0)
     {
@@ -568,6 +563,8 @@ bool DeviceManager::updateStatus(const String &serverUrl)
     systemStats["freeHeap"] = ESP.getFreeHeap();
     systemStats["uptime"] = millis();
     systemStats["lastUpdate"] = ""; // Will be set by server
+
+    // Do NOT include lighting system config fields in status update payload (per backend schema)
 
     String payload;
     serializeJson(doc, payload);

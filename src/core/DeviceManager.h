@@ -1,3 +1,14 @@
+// Forward declaration to allow pointer usage
+class LightManager;
+struct LightConfig;
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <Preferences.h>
+#include <WiFi.h>
+#include "../config.h"
+
+// Forward declaration to allow pointer usage
+class LightManager;
 #ifndef DEVICE_MANAGER_H
 #define DEVICE_MANAGER_H
 
@@ -38,7 +49,7 @@ public:
     void begin();
     bool registerMinimalWithServer(const String &serverUrl);
     bool registerWithServer(const String &serverUrl);
-    bool updateStatus(const String &serverUrl);
+    bool updateStatus(const String &serverUrl, LightManager *lightManager = nullptr);
     void setProvisioned(bool provisioned);
     bool isProvisioned();
     String getDeviceId();

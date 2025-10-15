@@ -15,7 +15,7 @@ static bool isMemoryHealthy()
     return true;
 }
 
-WiFiManager::WiFiManager() : server(nullptr), dnsServer(nullptr), isAPMode(false), apStartTime(0)
+WiFiManager::WiFiManager() : server(nullptr), dnsServer(nullptr), serverURLCached(false), isAPMode(false), apStartTime(0)
 {
 }
 
@@ -489,22 +489,35 @@ bool WiFiManager::hasStoredCredentials()
 void WiFiManager::setServerURL(const String &url)
 {
     preferences.putString(PREF_SERVER_URL, url);
+    // Update cache with new value
+    cachedServerURL = url;
+    serverURLCached = true;
     Serial.println("💾 Server URL saved: " + url);
 }
 
 String WiFiManager::getServerURL()
 {
-    // Ensure preferences namespace is opened
-    if (!preferences.isKey(PREF_SERVER_URL))
+    // Use cached value if available to reduce NVS access and logging spam
+    if (serverURLCached)
     {
-        // Key doesn't exist, return default to avoid NVS NOT_FOUND error
-        Serial.println("📝 No saved server URL found, using default: " + String(DEFAULT_SERVER_URL));
-        return DEFAULT_SERVER_URL;
+        return cachedServerURL;
     }
 
-    String serverUrl = preferences.getString(PREF_SERVER_URL, DEFAULT_SERVER_URL);
-    Serial.println("📝 Loaded server URL from preferences: " + serverUrl);
-    return serverUrl;
+    // Load from preferences once
+    if (!preferences.isKey(PREF_SERVER_URL))
+    {
+        // Key doesn't exist, use default
+        cachedServerURL = DEFAULT_SERVER_URL;
+        Serial.println("📝 No saved server URL found, using default: " + cachedServerURL);
+    }
+    else
+    {
+        cachedServerURL = preferences.getString(PREF_SERVER_URL, DEFAULT_SERVER_URL);
+        Serial.println("📝 Loaded server URL from preferences: " + cachedServerURL);
+    }
+
+    serverURLCached = true;
+    return cachedServerURL;
 }
 
 bool WiFiManager::isCaptivePortalHealthy()

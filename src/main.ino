@@ -914,7 +914,7 @@ void handlePeriodicTasks()
         if (wifiManager.isConnected())
         {
             String serverUrl = wifiManager.getServerURL();
-            if (deviceManager.updateStatus(serverUrl))
+            if (deviceManager.updateStatus(serverUrl, &lightManager))
             {
                 Serial.println("📊 Device status updated successfully");
             }
