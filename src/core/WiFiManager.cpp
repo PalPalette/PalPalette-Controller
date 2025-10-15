@@ -1,7 +1,21 @@
 #include "WiFiManager.h"
 #include <ArduinoJson.h>
 
-WiFiManager::WiFiManager() : server(nullptr), dnsServer(nullptr), isAPMode(false), apStartTime(0)
+// Helper function to check memory health before allocations
+static bool isMemoryHealthy()
+{
+    size_t freeHeap = ESP.getFreeHeap();
+    const size_t MIN_SAFE_HEAP = 15000; // 15KB minimum for web server components
+
+    if (freeHeap < MIN_SAFE_HEAP)
+    {
+        Serial.println("⚠️ Insufficient memory for server allocation: " + String(freeHeap) + " bytes free (minimum: " + String(MIN_SAFE_HEAP) + ")");
+        return false;
+    }
+    return true;
+}
+
+WiFiManager::WiFiManager() : server(nullptr), dnsServer(nullptr), serverURLCached(false), isAPMode(false), apStartTime(0)
 {
 }
 
@@ -153,6 +167,13 @@ void WiFiManager::setupCaptivePortal()
         dnsServer->stop();
         delete dnsServer;
         dnsServer = nullptr;
+    }
+
+    // Check memory health before allocation
+    if (!isMemoryHealthy())
+    {
+        Serial.println("❌ Cannot start captive portal due to insufficient memory");
+        return;
     }
 
     // Create new server instances
@@ -468,12 +489,35 @@ bool WiFiManager::hasStoredCredentials()
 void WiFiManager::setServerURL(const String &url)
 {
     preferences.putString(PREF_SERVER_URL, url);
+    // Update cache with new value
+    cachedServerURL = url;
+    serverURLCached = true;
     Serial.println("💾 Server URL saved: " + url);
 }
 
 String WiFiManager::getServerURL()
 {
-    return preferences.getString(PREF_SERVER_URL, DEFAULT_SERVER_URL);
+    // Use cached value if available to reduce NVS access and logging spam
+    if (serverURLCached)
+    {
+        return cachedServerURL;
+    }
+
+    // Load from preferences once
+    if (!preferences.isKey(PREF_SERVER_URL))
+    {
+        // Key doesn't exist, use default
+        cachedServerURL = DEFAULT_SERVER_URL;
+        Serial.println("📝 No saved server URL found, using default: " + cachedServerURL);
+    }
+    else
+    {
+        cachedServerURL = preferences.getString(PREF_SERVER_URL, DEFAULT_SERVER_URL);
+        Serial.println("📝 Loaded server URL from preferences: " + cachedServerURL);
+    }
+
+    serverURLCached = true;
+    return cachedServerURL;
 }
 
 bool WiFiManager::isCaptivePortalHealthy()

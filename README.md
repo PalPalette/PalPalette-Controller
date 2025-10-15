@@ -14,10 +14,16 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 
 ### 🏗 Modular Architecture
 
-- **WiFiManager**: Handles WiFi connection and captive portal setup
-- **DeviceManager**: Manages device registration, status, and pairing
-- **WSClient**: WebSocket communication with backend server
-- **Config System**: Centralized configuration and constants
+- **Core System**: Fundamental ESP32 functionality and communication
+  - **WiFiManager**: Handles WiFi connection and captive portal setup
+  - **DeviceManager**: Manages device registration, status, and pairing
+  - **WSClient**: WebSocket communication with backend server
+- **Lighting System**: Modular architecture for different lighting hardware
+  - **LightManager**: Orchestrates lighting operations and manages controllers
+  - **LightController**: Abstract base class for all lighting systems
+  - **Hardware Controllers**: Specific implementations (Nanoleaf, WS2812, etc.)
+- **Error Handling**: Comprehensive error management and recovery
+- **Config System**: Centralized configuration with error codes and constants
 
 ### 🌐 Network Features
 
@@ -79,12 +85,16 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 2. Power on the device
 3. Monitor serial output for setup information
 
-### Step 2: WiFi Configuration
+### Step 2: WiFi & Lighting Configuration
 
 1. Device will create a WiFi access point: `PalPalette-Setup-XXXXXX`
 2. Connect to this network using password: `setup123`
 3. Open a web browser and navigate to any website (captive portal will redirect)
-4. Enter your WiFi credentials and optionally set a custom server URL
+4. Configure your settings:
+   - **WiFi Credentials**: Enter your network SSID and password
+   - **Server URL**: Optionally set a custom backend server
+   - **Lighting System**: Select your lighting hardware (Nanoleaf, WS2812, etc.)
+   - **Hardware Details**: Enter IP address or enable auto-discovery
 5. Click "Save Settings & Connect"
 
 ### Step 3: Device Registration
@@ -93,12 +103,14 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 2. Registers with the backend server
 3. Displays a 6-digit pairing code in serial monitor
 
-### Step 4: Device Claiming
+### Step 4: Device Claiming & Lighting Authentication
 
 1. Open the PalPalette mobile app
 2. Use "Add Device" feature
 3. Enter the 6-digit pairing code shown on device
-4. Device is now claimed and operational
+4. **For Nanoleaf**: Press and hold the button on your Nanoleaf controller when prompted
+5. **For other systems**: Follow the authentication instructions shown in the app
+6. Device is now claimed and operational with lighting system connected
 
 ## Configuration
 
@@ -134,22 +146,37 @@ POST http://server:3000/devices/register
 
 ### WebSocket Events
 
+**Outgoing Messages (Device → Backend):**
+
 - **registerDevice**: Device registration with backend
+- **deviceStatus**: Regular status updates and heartbeat
+- **lightingCapabilities**: Report supported lighting systems
+- **authenticationRequest**: Request lighting system authentication
+- **errorReport**: Report system errors for monitoring
+
+**Incoming Messages (Backend → Device):**
+
 - **deviceClaimed**: User claims device with pairing code
 - **colorPalette**: Receive color palettes for display
-- **setupComplete**: Finalize device setup process
+- **lightingConfig**: Configure connected lighting system
+- **systemCommand**: Administrative commands (restart, reset, etc.)
+- **authenticationResponse**: Authentication tokens and configuration
 
 ## Debugging
 
 ### Serial Commands
 
-The device supports several debug commands via serial monitor:
+The device supports comprehensive debug commands via serial monitor:
 
-- `status` - Show full system status
-- `wifi` - Show WiFi connection information
-- `reset` - Reset all device settings and restart
-- `restart` - Restart the device
-- `help` - Show available commands
+- `status` - Show full system status including lighting system
+- `wifi` - Show WiFi connection and network information
+- `lighting` - Show lighting system status and configuration
+- `memory` - Display memory usage and health information
+- `errors` - Show recent error history and recovery attempts
+- `reset` - Factory reset all device settings and restart
+- `restart` - Soft restart the device
+- `watchdog` - Show watchdog timer status and statistics
+- `help` - Show all available commands
 
 ### Status Indicators
 
@@ -158,8 +185,14 @@ Monitor the serial output for these status messages:
 - `📶 WiFi connected successfully!` - WiFi connection established
 - `✅ Device registered with HTTP API` - Backend registration successful
 - `🔌 WebSocket connected successfully!` - Real-time communication active
-- `🔑 Pairing Code: XXXXXX` - Code for mobile app claiming
+- `� Lighting system ready` - Hardware controller initialized
+- `🍃 Nanoleaf device discovered` - Automatic mDNS discovery successful
+- `🔐 Authentication required` - User action needed for lighting system
+- `�🔑 Pairing Code: XXXXXX` - Code for mobile app claiming
 - `🎉 Device has been claimed!` - Device successfully claimed by user
+- `🎨 Color palette received` - New colors being displayed
+- `⚠ Error recovery in progress` - System handling errors automatically
+- `🔧 Watchdog fed` - System stability monitoring active
 
 ## Architecture Details
 
@@ -179,18 +212,64 @@ The firmware uses a state machine for robust operation:
 
 ```
 src/
-├── main.ino              # Main firmware and state machine
-├── config.h              # Configuration constants
-├── WiFiManager.h/.cpp     # WiFi and captive portal management
-├── DeviceManager.h/.cpp   # Device registration and status
-└── WSClient.h/.cpp        # WebSocket communication
+├── main.ino                    # Main firmware with state machine and error handling
+├── config.h                    # Enhanced configuration with error codes and constants
+├── core/                       # Core system modules
+│   ├── DeviceManager.h/.cpp    # Device registration and persistent storage
+│   ├── WiFiManager.h/.cpp      # WiFi connection and captive portal
+│   └── WSClient.h/.cpp         # WebSocket communication and message handling
+└── lighting/                   # Modular lighting system
+    ├── LightManager.h/.cpp     # Lighting orchestration and configuration
+    ├── LightController.h/.cpp  # Abstract base class and factory
+    └── controllers/            # Hardware-specific implementations
+        └── NanoleafController.h/.cpp  # Nanoleaf panels with mDNS discovery
 ```
 
-### Memory Management
+### Lighting System Architecture
 
-- Uses ESP32 Preferences for persistent storage
-- Minimal memory footprint for WebSocket buffers
-- Efficient JSON parsing with ArduinoJson
+The firmware now includes a comprehensive modular lighting system supporting multiple hardware types:
+
+#### 🎯 **Supported Lighting Hardware**
+
+- **Nanoleaf Panels**: Aurora, Canvas, Shapes with automatic mDNS discovery
+- **WS2812 LED Strips**: Addressable RGB LED strips (planned)
+- **Generic RGB**: Standard RGB controllers (planned)
+
+#### 🔧 **Key Features**
+
+- **Auto-Discovery**: Automatic detection of Nanoleaf devices on the network
+- **Authentication Management**: Secure token-based authentication with Nanoleaf
+- **Dynamic Configuration**: Runtime configuration through mobile app
+- **Color Palette Display**: Smooth transitions and animations
+- **Panel Layout Mapping**: Automatic panel arrangement detection
+
+### Error Handling & Recovery
+
+Advanced error management system with sophisticated recovery strategies:
+
+#### 📊 **Error Types**
+
+- WiFi connection failures with exponential backoff
+- Device registration timeouts with retry logic
+- WebSocket disconnections with automatic reconnection
+- Lighting system authentication failures
+- Memory allocation and watchdog timer issues
+
+#### 🔄 **Recovery Strategies**
+
+- **Retry Operation**: Simple retry with backoff
+- **Component Restart**: Restart specific subsystems
+- **Soft Restart**: Clear state and restart state machine
+- **Hard Restart**: Full device restart
+- **Factory Reset**: Complete configuration reset
+
+### Memory & Performance Management
+
+- **ESP32 Preferences**: Persistent storage for device configuration
+- **Watchdog Timer**: 30-second system stability monitoring
+- **Memory Health**: Continuous free heap monitoring
+- **Optimized Loops**: State-based loop delays for power efficiency
+- **Efficient JSON**: Optimized parsing with ArduinoJson v7
 
 ## Troubleshooting
 
@@ -224,6 +303,22 @@ src/
 - Verify mobile app is connected to same network/server
 - Try resetting device and reclaiming
 
+**Lighting system not connecting**:
+
+- **For Nanoleaf**: Ensure panels are powered and on same network
+- **For Nanoleaf**: Press and hold controller button during authentication
+- Check lighting system IP address in setup portal
+- Verify lighting hardware is supported and compatible
+- Try mDNS discovery: Leave IP address empty for auto-discovery
+- Monitor serial output for specific error messages
+
+**System stability issues**:
+
+- Check memory usage with `memory` serial command
+- Monitor error logs with `errors` serial command
+- Verify watchdog timer is functioning with `watchdog` command
+- Check for repeated error/recovery cycles in serial output
+
 ### Factory Reset
 
 To completely reset the device:
@@ -246,21 +341,36 @@ To completely reset the device:
 
 The modular architecture makes adding features straightforward:
 
-- WiFi-related features: Add to `WiFiManager`
-- Device features: Add to `DeviceManager`
-- Communication features: Add to `WSClient`
-- New functionality: Create new modules following existing patterns
+- **WiFi-related features**: Add to `WiFiManager` class
+- **Device features**: Add to `DeviceManager` class
+- **Communication features**: Add to `WSClient` class
+- **New lighting hardware**: Implement `LightController` interface
+- **Error handling**: Add error codes to `config.h` and recovery strategies
+- **New functionality**: Create new modules following existing patterns
+
+### Adding New Lighting Controllers
+
+To add support for new lighting hardware:
+
+1. **Create Controller Class**: Extend `LightController` base class
+2. **Implement Interface**: Provide all required methods (initialize, displayPalette, etc.)
+3. **Register with Factory**: Add to `LightControllerFactory` in `LightController.cpp`
+4. **Add Configuration**: Update setup portal HTML in `WiFiManager.cpp`
+5. **Test Integration**: Verify with debug commands and WebSocket events
 
 ## Version History
 
 ### Version 2.0.0 (Current)
 
-- Complete refactor to modular architecture
-- Self-setup capability with captive portal
-- Automatic device registration
-- Pairing code system for claiming
-- WebSocket communication with backend
-- Robust state machine operation
+- **Complete Modular Architecture**: Separated core, lighting, and error handling systems
+- **Advanced Lighting Support**: Nanoleaf panels with mDNS auto-discovery
+- **Comprehensive Error Handling**: Recovery strategies and exponential backoff
+- **Self-Setup Capability**: Enhanced captive portal with lighting configuration
+- **Watchdog Timer System**: Automatic system stability monitoring
+- **Memory Management**: Health monitoring and optimization
+- **Enhanced Debugging**: Comprehensive serial command interface
+- **WebSocket Communication**: Bidirectional messaging with backend
+- **Robust State Machine**: 7-state operation with error recovery
 
 ### Version 1.0.0 (Legacy)
 

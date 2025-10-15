@@ -29,7 +29,10 @@ private:
     String serverUrl;
     bool isConnected;
     unsigned long lastHeartbeat;
+    unsigned long lastPongReceived;
     unsigned long lastConnectionAttempt;
+    int retryAttempts;
+    unsigned long lastRetryReset;
     ColorPalette currentPalette;
 
     // Message handlers
