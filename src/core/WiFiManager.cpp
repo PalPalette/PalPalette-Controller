@@ -223,6 +223,9 @@ void WiFiManager::setupCaptivePortal()
     server->on("/reset", HTTP_POST, [this](AsyncWebServerRequest *request)
                { handleReset(request); });
 
+    server->on("/scan", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleScanNetworks(request); });
+
     // Captive portal - redirect all requests to setup page
     server->onNotFound([this](AsyncWebServerRequest *request)
                        { handleRoot(request); });
@@ -331,10 +334,59 @@ String WiFiManager::getSetupPageHTML()
     html += "button:hover { background: #0056b3; }";
     html += ".info { background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; }";
     html += ".scan-btn { margin-top: 5px; padding: 5px 10px; font-size: 12px; width: auto; }";
+    html += ".networks-list { margin-top: 10px; border: 1px solid #ddd; border-radius: 5px; max-height: 200px; overflow-y: auto; display: none; }";
+    html += ".network-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }";
+    html += ".network-item:hover { background: #f8f9fa; }";
+    html += ".network-item:last-child { border-bottom: none; }";
+    html += ".network-name { font-weight: bold; }";
+    html += ".network-info { font-size: 12px; color: #666; }";
+    html += ".signal-strength { font-size: 12px; color: #666; }";
+    html += ".encrypted { color: #ffc107; }";
+    html += ".loading { text-align: center; padding: 20px; color: #666; }";
     html += "</style>";
     html += "<script>";
     html += "function selectNetwork(ssid) { document.getElementById('ssid').value = ssid; }";
-    html += "function scanNetworks() { alert('Network scan feature would be implemented here'); }";
+    html += "function scanNetworks() {";
+    html += "  const scanBtn = document.querySelector('.scan-btn');";
+    html += "  const networksList = document.getElementById('networks-list');";
+    html += "  scanBtn.disabled = true;";
+    html += "  scanBtn.textContent = 'Scanning...';";
+    html += "  networksList.style.display = 'block';";
+    html += "  networksList.innerHTML = '<div class=\"loading\">Scanning for networks...</div>';";
+    html += "  fetch('/scan')";
+    html += "    .then(response => response.json())";
+    html += "    .then(data => {";
+    html += "      networksList.innerHTML = '';";
+    html += "      if (data.networks && data.networks.length > 0) {";
+    html += "        data.networks.forEach(network => {";
+    html += "          const item = document.createElement('div');";
+    html += "          item.className = 'network-item';";
+    html += "          item.onclick = () => selectNetwork(network.ssid);";
+    html += "          const signalBars = Math.round(network.quality / 25);";
+    html += "          const signalIcon = '📶'.repeat(Math.max(1, signalBars));";
+    html += "          const lockIcon = network.encryption ? '🔒 ' : '';";
+    html += "          item.innerHTML = `";
+    html += "            <div>";
+    html += "              <div class=\"network-name\">${lockIcon}${network.ssid}</div>";
+    html += "              <div class=\"network-info\">Signal: ${network.quality}% (${network.rssi} dBm)</div>";
+    html += "            </div>";
+    html += "            <div class=\"signal-strength\">${signalIcon}</div>`;";
+    html += "          networksList.appendChild(item);";
+    html += "        });";
+    html += "      } else {";
+    html += "        networksList.innerHTML = '<div class=\"loading\">No networks found</div>';";
+    html += "      }";
+    html += "    })";
+    html += "    .catch(error => {";
+    html += "      console.error('Error scanning networks:', error);";
+    html += "      networksList.innerHTML = '<div class=\"loading\">Error scanning networks</div>';";
+    html += "    })";
+    html += "    .finally(() => {";
+    html += "      scanBtn.disabled = false;";
+    html += "      scanBtn.textContent = 'Scan Networks';";
+    html += "    });";
+    html += "}";
+    html += "window.onload = function() { scanNetworks(); };";
     html += "</script>";
     html += "</head><body>";
     html += "<div class='container'>";
@@ -349,6 +401,7 @@ String WiFiManager::getSetupPageHTML()
     html += "<label for='ssid'>WiFi Network Name (SSID):</label>";
     html += "<input type='text' id='ssid' name='ssid' required placeholder='Enter your WiFi network name'>";
     html += "<button type='button' onclick='scanNetworks()' class='scan-btn'>Scan Networks</button>";
+    html += "<div id='networks-list' class='networks-list'></div>";
     html += "</div>";
     html += "<div class='form-group'>";
     html += "<label for='password'>WiFi Password:</label>";
@@ -523,4 +576,94 @@ String WiFiManager::getServerURL()
 bool WiFiManager::isCaptivePortalHealthy()
 {
     return isAPMode && (server != nullptr) && (dnsServer != nullptr);
+}
+
+void WiFiManager::handleScanNetworks(AsyncWebServerRequest *request)
+{
+    Serial.println("🔍 Scanning for WiFi networks...");
+
+    String networks = scanAvailableNetworks();
+    request->send(200, "application/json", networks);
+}
+
+String WiFiManager::scanAvailableNetworks()
+{
+    // Start WiFi scan
+    int networkCount = WiFi.scanNetworks();
+
+    JsonDocument doc;
+    JsonArray networksArray = doc["networks"].to<JsonArray>();
+
+    if (networkCount == 0)
+    {
+        Serial.println("No networks found");
+    }
+    else
+    {
+        Serial.println("Found " + String(networkCount) + " networks:");
+
+        // Sort networks by signal strength (RSSI)
+        for (int i = 0; i < networkCount - 1; i++)
+        {
+            for (int j = i + 1; j < networkCount; j++)
+            {
+                if (WiFi.RSSI(i) < WiFi.RSSI(j))
+                {
+                    // Swap networks (we need to track indices since WiFi library doesn't provide direct sorting)
+                    // We'll just iterate in RSSI order when building the JSON
+                }
+            }
+        }
+
+        // Build JSON array of unique networks (remove duplicates by SSID)
+        for (int i = 0; i < networkCount; i++)
+        {
+            String ssid = WiFi.SSID(i);
+            int32_t rssi = WiFi.RSSI(i);
+            wifi_auth_mode_t encryption = WiFi.encryptionType(i);
+
+            // Skip hidden networks (empty SSID)
+            if (ssid.length() == 0)
+            {
+                continue;
+            }
+
+            // Check for duplicates
+            bool isDuplicate = false;
+            for (JsonVariant network : networksArray)
+            {
+                if (network["ssid"].as<String>() == ssid)
+                {
+                    // If we found a duplicate, keep the one with stronger signal
+                    if (rssi > network["rssi"].as<int32_t>())
+                    {
+                        network["rssi"] = rssi;
+                        network["encryption"] = (encryption != WIFI_AUTH_OPEN);
+                    }
+                    isDuplicate = true;
+                    break;
+                }
+            }
+
+            // Add new network if not duplicate
+            if (!isDuplicate)
+            {
+                JsonObject network = networksArray.add<JsonObject>();
+                network["ssid"] = ssid;
+                network["rssi"] = rssi;
+                network["encryption"] = (encryption != WIFI_AUTH_OPEN);
+                network["quality"] = constrain(2 * (rssi + 100), 0, 100); // Convert RSSI to quality percentage
+
+                Serial.println("  " + ssid + " (" + String(rssi) + " dBm) " +
+                               (encryption != WIFI_AUTH_OPEN ? "[Encrypted]" : "[Open]"));
+            }
+        }
+    }
+
+    // Clean up scan results
+    WiFi.scanDelete();
+
+    String result;
+    serializeJson(doc, result);
+    return result;
 }

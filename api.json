@@ -1,0 +1,2926 @@
+{
+    "openapi": "3.0.0",
+    "paths": {
+        "/users/register": {
+            "post": {
+                "operationId": "UsersController_register",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterUserDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User successfully registered"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "409": {
+                        "description": "User already exists"
+                    }
+                },
+                "summary": "Register a new user (deprecated - use /auth/register)",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/friends/request": {
+            "post": {
+                "operationId": "UsersController_sendFriendRequest",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendFriendRequestDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Friend request sent successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Target user not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Send a friend request",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/friends/respond": {
+            "post": {
+                "operationId": "UsersController_respondToFriendRequest",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RespondToFriendRequestDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Response recorded successfully"
+                    },
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Friendship"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Friend request not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Respond to a friend request",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/friends": {
+            "get": {
+                "operationId": "UsersController_getFriends",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "List of friends retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/FriendDto"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get list of friends",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/friends/pending": {
+            "get": {
+                "operationId": "UsersController_getPendingRequests",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Pending requests retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get pending friend requests received",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/friends/sent": {
+            "get": {
+                "operationId": "UsersController_getSentRequests",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Sent requests retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get friend requests sent by user",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/palettes": {
+            "post": {
+                "operationId": "UsersController_createPalette",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateColorPaletteDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Color palette created successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Create a new color palette",
+                "tags": [
+                    "Users"
+                ]
+            },
+            "get": {
+                "operationId": "UsersController_getUserPalettes",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "User palettes retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get user's color palettes",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/palettes/send": {
+            "post": {
+                "operationId": "UsersController_sendPaletteToFriends",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendPaletteToFriendsDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Palette sent to friends successfully"
+                    },
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Message"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Palette not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Send a color palette to friends",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/palettes/{id}": {
+            "get": {
+                "operationId": "UsersController_getPalette",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Color palette ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Color palette retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Palette not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get a specific color palette by ID",
+                "tags": [
+                    "Users"
+                ]
+            },
+            "patch": {
+                "operationId": "UsersController_updatePalette",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Color palette ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateColorPaletteDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Color palette updated successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not palette owner"
+                    },
+                    "404": {
+                        "description": "Palette not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Update a color palette",
+                "tags": [
+                    "Users"
+                ]
+            },
+            "delete": {
+                "operationId": "UsersController_deletePalette",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Color palette ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Color palette deleted successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not palette owner"
+                    },
+                    "404": {
+                        "description": "Palette not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Delete a color palette",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/messages": {
+            "get": {
+                "operationId": "UsersController_getReceivedMessages",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Messages retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get received messages for user",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/messages/undelivered": {
+            "get": {
+                "operationId": "UsersController_getUndeliveredMessages",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Undelivered messages retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get undelivered messages for user",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/messages/{messageId}/replay": {
+            "post": {
+                "operationId": "UsersController_replayMessage",
+                "parameters": [
+                    {
+                        "name": "messageId",
+                        "required": true,
+                        "in": "path",
+                        "description": "Message ID to replay",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Message replayed successfully"
+                    },
+                    "201": {
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Message or device not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Replay a message on a specific device",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/message-timeframe": {
+            "put": {
+                "operationId": "UsersController_setMessageTimeframe",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetMessageTimeframeDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Message timeframe updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageTimeframeResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Set user's message receiving timeframe",
+                "tags": [
+                    "Users"
+                ]
+            },
+            "get": {
+                "operationId": "UsersController_getMessageTimeframe",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Message timeframe retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageTimeframeResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get user's message receiving timeframe",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "operationId": "UsersController_getUser",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "User ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User retrieved successfully"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                },
+                "summary": "Get user by ID (public)",
+                "tags": [
+                    "Users"
+                ]
+            },
+            "patch": {
+                "operationId": "UsersController_updateProfile",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "User ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profile updated successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not profile owner"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Update user profile",
+                "tags": [
+                    "Users"
+                ]
+            },
+            "delete": {
+                "operationId": "UsersController_remove",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "User ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User deleted successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not account owner"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Delete user account",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/messages": {
+            "post": {
+                "operationId": "MessagesController_create",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateMessageDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Message created successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    }
+                },
+                "summary": "Create a new message",
+                "tags": [
+                    "Messages"
+                ]
+            },
+            "get": {
+                "operationId": "MessagesController_findAll",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "All messages retrieved successfully"
+                    }
+                },
+                "summary": "Get all messages (admin)",
+                "tags": [
+                    "Messages"
+                ]
+            }
+        },
+        "/messages/{id}": {
+            "get": {
+                "operationId": "MessagesController_findById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Message ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Message retrieved successfully"
+                    },
+                    "404": {
+                        "description": "Message not found"
+                    }
+                },
+                "summary": "Get message by ID",
+                "tags": [
+                    "Messages"
+                ]
+            }
+        },
+        "/messages/recipient/{recipientId}": {
+            "get": {
+                "operationId": "MessagesController_findByRecipient",
+                "parameters": [
+                    {
+                        "name": "recipientId",
+                        "required": true,
+                        "in": "path",
+                        "description": "Recipient user ID",
+                        "schema": {
+                            "example": "uuid-string",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Messages retrieved successfully"
+                    },
+                    "404": {
+                        "description": "Recipient not found"
+                    }
+                },
+                "summary": "Get messages for a specific recipient",
+                "tags": [
+                    "Messages"
+                ]
+            }
+        },
+        "/devices/register": {
+            "post": {
+                "operationId": "DevicesController_registerDevice",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterDeviceDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Device registered successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "409": {
+                        "description": "Device already exists"
+                    }
+                },
+                "summary": "Register a new device (self-setup)",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/pairing-code/{deviceId}": {
+            "get": {
+                "operationId": "DevicesController_getPairingCode",
+                "parameters": [
+                    {
+                        "name": "deviceId",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pairing code retrieved successfully"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "summary": "Get pairing code for device",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/claim-by-code": {
+            "post": {
+                "operationId": "DevicesController_claimByCode",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ClaimByCodeDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Device claimed successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - invalid pairing code"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Device or pairing code not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Claim a device using pairing code",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}/reset": {
+            "delete": {
+                "operationId": "DevicesController_resetDevice",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Device reset successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not device owner"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Reset device to unclaimed state",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}/status": {
+            "put": {
+                "operationId": "DevicesController_updateStatus",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateStatusDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Device status updated successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "summary": "Update device status (for device self-reporting)",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/by-mac/{macAddress}": {
+            "get": {
+                "operationId": "DevicesController_findDeviceByMacAddress",
+                "parameters": [
+                    {
+                        "name": "macAddress",
+                        "required": true,
+                        "in": "path",
+                        "description": "MAC address of the device",
+                        "schema": {
+                            "example": "00:1B:44:11:3A:B7",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Device found"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "summary": "Find device by MAC address",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/discover/unpaired": {
+            "get": {
+                "operationId": "DevicesController_discoverUnpairedDevices",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "List of discoverable unpaired devices"
+                    }
+                },
+                "summary": "Discover unpaired devices available for pairing",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/debug/all-devices": {
+            "get": {
+                "operationId": "DevicesController_debugAllDevices",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{deviceId}/pairing-info": {
+            "get": {
+                "operationId": "DevicesController_getDevicePairingInfo",
+                "parameters": [
+                    {
+                        "name": "deviceId",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}/lighting/configure": {
+            "post": {
+                "operationId": "DevicesController_configureLightingSystem",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LightingSystemConfigDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Lighting system configured successfully"
+                    },
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Device"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not device owner"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Configure lighting system for device",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}/lighting": {
+            "patch": {
+                "operationId": "DevicesController_updateLightingSystem",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateLightingSystemDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Lighting system updated successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "summary": "Update lighting system configuration",
+                "tags": [
+                    "Devices"
+                ]
+            },
+            "delete": {
+                "operationId": "DevicesController_resetLightingSystem",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Device"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}/lighting/test": {
+            "post": {
+                "operationId": "DevicesController_testLightingSystem",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Test completed successfully"
+                    },
+                    "201": {
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden - not device owner"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    },
+                    "500": {
+                        "description": "Lighting system connection failed"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Test lighting system connection",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}/lighting/status": {
+            "get": {
+                "operationId": "DevicesController_getLightingSystemStatus",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LightingSystemStatusDto"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/notifications/user-action": {
+            "post": {
+                "operationId": "DevicesController_sendUserNotification",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserNotificationDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationResponseDto"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/my-devices/lighting-systems": {
+            "get": {
+                "operationId": "DevicesController_getMyDevicesLightingSystems",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/LightingSystemStatusDto"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/lighting/supported-systems": {
+            "get": {
+                "operationId": "DevicesController_getSupportedLightingSystems",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/lighting/{systemType}/default-config": {
+            "get": {
+                "operationId": "DevicesController_getDefaultLightingConfig",
+                "parameters": [
+                    {
+                        "name": "systemType",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/my-devices": {
+            "get": {
+                "operationId": "DevicesController_getMyDevices",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "User devices retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get devices owned by current user",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices": {
+            "get": {
+                "operationId": "DevicesController_findAll",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "All devices retrieved successfully"
+                    }
+                },
+                "summary": "Get all devices (admin)",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/devices/{id}": {
+            "get": {
+                "operationId": "DevicesController_findOne",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "description": "Device ID",
+                        "schema": {
+                            "example": "device-uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Device retrieved successfully"
+                    },
+                    "404": {
+                        "description": "Device not found"
+                    }
+                },
+                "summary": "Get device by ID",
+                "tags": [
+                    "Devices"
+                ]
+            },
+            "patch": {
+                "operationId": "DevicesController_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDeviceDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Device"
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            },
+            "delete": {
+                "operationId": "DevicesController_remove",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                },
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "operationId": "AuthController_register",
+                "parameters": [
+                    {
+                        "name": "user-agent",
+                        "required": true,
+                        "in": "header",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterUserDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User successfully registered and logged in",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation error"
+                    },
+                    "409": {
+                        "description": "User already exists"
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    }
+                },
+                "summary": "Register a new user",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "operationId": "AuthController_login",
+                "parameters": [
+                    {
+                        "name": "user-agent",
+                        "required": true,
+                        "in": "header",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginRequestDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    }
+                },
+                "summary": "Login user and get access tokens",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "operationId": "AuthController_refresh",
+                "parameters": [
+                    {
+                        "name": "user-agent",
+                        "required": true,
+                        "in": "header",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RefreshTokenDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens refreshed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid refresh token"
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    }
+                },
+                "summary": "Refresh access tokens using refresh token",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "operationId": "AuthController_logout",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Logout successful"
+                    },
+                    "201": {
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Logout user and invalidate tokens",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/auth/validate": {
+            "post": {
+                "operationId": "AuthController_validate",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ValidateTokenDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Token validation result"
+                    },
+                    "201": {
+                        "description": ""
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    }
+                },
+                "summary": "Validate an access token",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/auth/revoke-device": {
+            "post": {
+                "operationId": "AuthController_revokeDevice",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "device_name": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "device_name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Device access revoked"
+                    },
+                    "201": {
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Revoke access for a specific device",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        },
+        "/auth/sessions": {
+            "post": {
+                "operationId": "AuthController_getActiveSessions",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Active sessions retrieved"
+                    },
+                    "201": {
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get active sessions for the current user",
+                "tags": [
+                    "Authentication"
+                ]
+            }
+        }
+    },
+    "info": {
+        "title": "PalPalette API",
+        "description": "API for PalPalette color sharing and device management system",
+        "version": "1.0",
+        "contact": {}
+    },
+    "tags": [
+        {
+            "name": "Authentication",
+            "description": "User and device authentication endpoints"
+        },
+        {
+            "name": "Users",
+            "description": "User management and social features"
+        },
+        {
+            "name": "Devices",
+            "description": "Device registration, pairing and management"
+        },
+        {
+            "name": "Messages",
+            "description": "Real-time messaging and color palette sharing"
+        }
+    ],
+    "servers": [],
+    "components": {
+        "securitySchemes": {
+            "bearer": {
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "type": "http",
+                "description": "Enter your JWT token"
+            }
+        },
+        "schemas": {
+            "RegisterUserDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "user@example.com",
+                        "description": "User email address"
+                    },
+                    "password": {
+                        "type": "string",
+                        "minLength": 6,
+                        "example": "password123",
+                        "description": "User password (minimum 6 characters)"
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "example": "John Doe",
+                        "description": "Display name for the user"
+                    },
+                    "device_name": {
+                        "type": "string",
+                        "example": "My iPhone",
+                        "description": "Optional device name for tracking user sessions"
+                    }
+                },
+                "required": [
+                    "email",
+                    "password",
+                    "displayName"
+                ]
+            },
+            "SendFriendRequestDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "friend@example.com",
+                        "description": "Email address of the user to send friend request to"
+                    }
+                },
+                "required": [
+                    "email"
+                ]
+            },
+            "RespondToFriendRequestDto": {
+                "type": "object",
+                "properties": {
+                    "friendshipId": {
+                        "type": "string",
+                        "example": "uuid-string",
+                        "description": "ID of the friendship request"
+                    },
+                    "action": {
+                        "type": "string",
+                        "example": "accept",
+                        "description": "Action to take on the friend request",
+                        "enum": [
+                            "accept",
+                            "decline"
+                        ]
+                    }
+                },
+                "required": [
+                    "friendshipId",
+                    "action"
+                ]
+            },
+            "Message": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "sender": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "recipient": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "device": {
+                        "$ref": "#/components/schemas/Device"
+                    },
+                    "colors": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "imageUrl": {
+                        "type": "string"
+                    },
+                    "sentAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "deliveredAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "sent",
+                            "delivered",
+                            "failed"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "sender",
+                    "recipient",
+                    "device",
+                    "colors",
+                    "imageUrl",
+                    "sentAt",
+                    "deliveredAt",
+                    "status"
+                ]
+            },
+            "Device": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/User"
+                            }
+                        ]
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "lastSeenAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "pairingCode": {
+                        "type": "string"
+                    },
+                    "pairingCodeExpiresAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "macAddress": {
+                        "type": "string"
+                    },
+                    "isProvisioned": {
+                        "type": "boolean"
+                    },
+                    "isOnline": {
+                        "type": "boolean"
+                    },
+                    "ipAddress": {
+                        "type": "string"
+                    },
+                    "wifiRSSI": {
+                        "type": "number"
+                    },
+                    "firmwareVersion": {
+                        "type": "string"
+                    },
+                    "systemStats": {
+                        "type": "object"
+                    },
+                    "lightingSystemType": {
+                        "type": "string"
+                    },
+                    "lightingHostAddress": {
+                        "type": "string"
+                    },
+                    "lightingPort": {
+                        "type": "number"
+                    },
+                    "lightingAuthToken": {
+                        "type": "string"
+                    },
+                    "lightingCustomConfig": {
+                        "type": "object"
+                    },
+                    "lightingSystemConfigured": {
+                        "type": "boolean"
+                    },
+                    "lightingLastTestAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "lightingStatus": {
+                        "type": "string"
+                    },
+                    "lightingCapabilities": {
+                        "type": "object"
+                    },
+                    "lightingLastStatusUpdate": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Message"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "type",
+                    "user",
+                    "status",
+                    "lastSeenAt",
+                    "pairingCode",
+                    "pairingCodeExpiresAt",
+                    "macAddress",
+                    "isProvisioned",
+                    "isOnline",
+                    "ipAddress",
+                    "wifiRSSI",
+                    "firmwareVersion",
+                    "systemStats",
+                    "lightingSystemType",
+                    "lightingHostAddress",
+                    "lightingPort",
+                    "lightingAuthToken",
+                    "lightingCustomConfig",
+                    "lightingSystemConfigured",
+                    "lightingLastTestAt",
+                    "lightingStatus",
+                    "lightingCapabilities",
+                    "lightingLastStatusUpdate",
+                    "createdAt",
+                    "updatedAt",
+                    "messages"
+                ]
+            },
+            "User": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "devices": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Device"
+                        }
+                    },
+                    "sentMessages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Message"
+                        }
+                    },
+                    "receivedMessages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Message"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "displayName",
+                    "createdAt",
+                    "updatedAt",
+                    "devices",
+                    "sentMessages",
+                    "receivedMessages"
+                ]
+            },
+            "Friendship": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "requesterId": {
+                        "type": "string"
+                    },
+                    "addresseeId": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "accepted",
+                            "blocked"
+                        ]
+                    },
+                    "requester": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "addressee": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "createdAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "requesterId",
+                    "addresseeId",
+                    "status",
+                    "requester",
+                    "addressee",
+                    "createdAt",
+                    "updatedAt"
+                ]
+            },
+            "FriendDeviceDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "type"
+                ]
+            },
+            "FriendDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "devices": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FriendDeviceDto"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "displayName",
+                    "email",
+                    "devices"
+                ]
+            },
+            "CreateColorPaletteDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "Sunset Colors",
+                        "description": "Name of the color palette"
+                    },
+                    "colors": {
+                        "minItems": 1,
+                        "example": [
+                            "#FF6B35",
+                            "#F7931E",
+                            "#FFD23F",
+                            "#06FFA5"
+                        ],
+                        "description": "Array of hex color codes",
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^#?([0-9A-F]{3}|[0-9A-F]{4}|[0-9A-F]{6}|[0-9A-F]{8})$"
+                        }
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "Beautiful sunset colors for evening themes",
+                        "description": "Optional description of the color palette"
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "example": "https://example.com/image.jpg",
+                        "description": "Optional image URL for the palette"
+                    }
+                },
+                "required": [
+                    "name",
+                    "colors"
+                ]
+            },
+            "SendPaletteToFriendsDto": {
+                "type": "object",
+                "properties": {
+                    "paletteId": {
+                        "type": "string",
+                        "example": "uuid-string",
+                        "description": "ID of existing palette to send"
+                    },
+                    "friendIds": {
+                        "minItems": 1,
+                        "example": [
+                            "friend-uuid-1",
+                            "friend-uuid-2"
+                        ],
+                        "description": "Array of friend user IDs to send palette to",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "colors": {
+                        "minItems": 1,
+                        "example": [
+                            "#FF6B35",
+                            "#F7931E",
+                            "#FFD23F"
+                        ],
+                        "description": "Direct colors to send (if not using existing palette)",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "imageUrl": {
+                        "type": "string",
+                        "example": "https://example.com/image.jpg",
+                        "description": "Optional image URL for the palette message"
+                    }
+                },
+                "required": [
+                    "friendIds"
+                ]
+            },
+            "UpdateColorPaletteDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "Updated Sunset Colors",
+                        "description": "Updated name of the color palette"
+                    },
+                    "colors": {
+                        "minItems": 1,
+                        "example": [
+                            "#FF6B35",
+                            "#F7931E",
+                            "#FFD23F",
+                            "#06FFA5"
+                        ],
+                        "description": "Updated array of hex color codes",
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^#?([0-9A-F]{3}|[0-9A-F]{4}|[0-9A-F]{6}|[0-9A-F]{8})$"
+                        }
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "Updated description for the palette",
+                        "description": "Updated description of the color palette"
+                    }
+                }
+            },
+            "SetMessageTimeframeDto": {
+                "type": "object",
+                "properties": {
+                    "messageStartTime": {
+                        "type": "string",
+                        "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
+                        "example": "09:00",
+                        "description": "Start time for receiving messages (24-hour format HH:mm)"
+                    },
+                    "messageEndTime": {
+                        "type": "string",
+                        "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
+                        "example": "22:00",
+                        "description": "End time for receiving messages (24-hour format HH:mm)"
+                    }
+                }
+            },
+            "MessageTimeframeResponseDto": {
+                "type": "object",
+                "properties": {
+                    "messageStartTime": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "09:00",
+                        "description": "Start time for receiving messages"
+                    },
+                    "messageEndTime": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "22:00",
+                        "description": "End time for receiving messages"
+                    },
+                    "isConfigured": {
+                        "type": "boolean",
+                        "example": true,
+                        "description": "Whether the user has configured a timeframe"
+                    }
+                },
+                "required": [
+                    "messageStartTime",
+                    "messageEndTime",
+                    "isConfigured"
+                ]
+            },
+            "CreateMessageDto": {
+                "type": "object",
+                "properties": {
+                    "senderId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "uuid-sender-123",
+                        "description": "ID of the user sending the message"
+                    },
+                    "recipientId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "uuid-recipient-456",
+                        "description": "ID of the user receiving the message"
+                    },
+                    "deviceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "uuid-device-789",
+                        "description": "ID of the device to display the colors"
+                    },
+                    "colors": {
+                        "minItems": 1,
+                        "example": [
+                            "#FF6B35",
+                            "#F7931E",
+                            "#FFD23F",
+                            "#06FFA5"
+                        ],
+                        "description": "Array of color codes (hex format) to display",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "content": {
+                        "type": "string",
+                        "example": "Check out these beautiful sunset colors!",
+                        "description": "Optional text content for the message"
+                    }
+                },
+                "required": [
+                    "senderId",
+                    "recipientId",
+                    "deviceId",
+                    "colors"
+                ]
+            },
+            "RegisterDeviceDto": {
+                "type": "object",
+                "properties": {
+                    "macAddress": {
+                        "type": "string",
+                        "pattern": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$",
+                        "example": "00:1B:44:11:3A:B7",
+                        "description": "MAC address of the device in XX:XX:XX:XX:XX:XX format"
+                    },
+                    "ipAddress": {
+                        "type": "string",
+                        "example": "192.168.1.100",
+                        "description": "IP address of the device"
+                    },
+                    "deviceType": {
+                        "type": "string",
+                        "example": "PalPalette-LED-Controller",
+                        "description": "Type of the device"
+                    },
+                    "firmwareVersion": {
+                        "type": "string",
+                        "example": "1.2.3",
+                        "description": "Firmware version of the device"
+                    },
+                    "lightingSystemType": {
+                        "type": "string",
+                        "example": "philips_hue",
+                        "description": "Type of lighting system to connect to"
+                    },
+                    "lightingHostAddress": {
+                        "type": "string",
+                        "example": "192.168.1.2",
+                        "description": "Host address of the lighting system"
+                    },
+                    "lightingPort": {
+                        "type": "number",
+                        "example": 80,
+                        "description": "Port for lighting system connection"
+                    },
+                    "lightingAuthToken": {
+                        "type": "string",
+                        "example": "hue-auth-token-123",
+                        "description": "Authentication token for lighting system"
+                    },
+                    "lightingCustomConfig": {
+                        "type": "object",
+                        "description": "Custom configuration object for specific lighting systems"
+                    }
+                },
+                "required": [
+                    "macAddress"
+                ]
+            },
+            "ClaimByCodeDto": {
+                "type": "object",
+                "properties": {
+                    "pairingCode": {
+                        "type": "string",
+                        "minLength": 6,
+                        "maxLength": 6,
+                        "example": "ABC123",
+                        "description": "Six-character pairing code displayed on device"
+                    },
+                    "deviceName": {
+                        "type": "string",
+                        "example": "Living Room LEDs",
+                        "description": "User-friendly name for the device"
+                    }
+                },
+                "required": [
+                    "pairingCode",
+                    "deviceName"
+                ]
+            },
+            "UpdateStatusDto": {
+                "type": "object",
+                "properties": {
+                    "isOnline": {
+                        "type": "boolean",
+                        "example": true,
+                        "description": "Whether the device is currently online"
+                    },
+                    "isProvisioned": {
+                        "type": "boolean",
+                        "example": true,
+                        "description": "Whether the device has been fully provisioned"
+                    },
+                    "ipAddress": {
+                        "type": "string",
+                        "example": "192.168.1.150",
+                        "description": "Current IP address of the device"
+                    },
+                    "lastSeenAt": {
+                        "type": "string",
+                        "example": "2023-01-01T12:00:00Z",
+                        "description": "Timestamp when device was last seen"
+                    },
+                    "firmwareVersion": {
+                        "type": "string",
+                        "example": "1.2.4",
+                        "description": "Current firmware version"
+                    },
+                    "macAddress": {
+                        "type": "string",
+                        "example": "00:1B:44:11:3A:B7",
+                        "description": "MAC address of the device"
+                    },
+                    "wifiRSSI": {
+                        "type": "number",
+                        "example": -45,
+                        "description": "WiFi signal strength in dBm"
+                    },
+                    "systemStats": {
+                        "type": "object",
+                        "properties": {
+                            "freeHeap": {
+                                "type": "number"
+                            },
+                            "uptime": {
+                                "type": "number"
+                            },
+                            "lastUpdate": {
+                                "format": "date-time",
+                                "type": "string"
+                            }
+                        },
+                        "required": []
+                    },
+                    "freeHeap": {
+                        "type": "number",
+                        "example": 45000,
+                        "description": "Free heap memory in bytes (ESP32 direct property)"
+                    },
+                    "uptime": {
+                        "type": "number",
+                        "example": 3600,
+                        "description": "Device uptime in seconds (ESP32 direct property)"
+                    }
+                }
+            },
+            "LightingSystemConfigDto": {
+                "type": "object",
+                "properties": {
+                    "lightingSystemType": {
+                        "type": "string",
+                        "example": "philips_hue",
+                        "description": "Type of lighting system",
+                        "enum": [
+                            "nanoleaf",
+                            "wled",
+                            "ws2812",
+                            "philips_hue",
+                            "neopixel",
+                            "addressable_led",
+                            "generic_rgb"
+                        ]
+                    },
+                    "lightingHostAddress": {
+                        "type": "string",
+                        "example": "192.168.1.100",
+                        "description": "IP address or hostname of the lighting system"
+                    },
+                    "lightingPort": {
+                        "type": "number",
+                        "example": 80,
+                        "description": "Port number for the lighting system connection"
+                    },
+                    "lightingAuthToken": {
+                        "type": "string",
+                        "example": "auth-token-123",
+                        "description": "Authentication token for the lighting system"
+                    },
+                    "lightingCustomConfig": {
+                        "type": "object",
+                        "description": "Additional configuration specific to the lighting system type"
+                    }
+                },
+                "required": [
+                    "lightingSystemType"
+                ]
+            },
+            "UpdateLightingSystemDto": {
+                "type": "object",
+                "properties": {
+                    "lightingSystemType": {
+                        "type": "string",
+                        "example": "wled",
+                        "description": "Type of lighting system",
+                        "enum": [
+                            "nanoleaf",
+                            "wled",
+                            "ws2812",
+                            "philips_hue"
+                        ]
+                    },
+                    "lightingHostAddress": {
+                        "type": "string",
+                        "example": "192.168.1.101",
+                        "description": "Updated IP address or hostname"
+                    },
+                    "lightingPort": {
+                        "type": "number",
+                        "example": 8080,
+                        "description": "Updated port number"
+                    },
+                    "lightingAuthToken": {
+                        "type": "string",
+                        "example": "new-auth-token-456",
+                        "description": "Updated authentication token"
+                    },
+                    "lightingCustomConfig": {
+                        "type": "object",
+                        "description": "Updated custom configuration"
+                    },
+                    "lightingSystemConfigured": {
+                        "type": "boolean",
+                        "example": true,
+                        "description": "Whether the lighting system is configured"
+                    },
+                    "lightingStatus": {
+                        "type": "string",
+                        "example": "working",
+                        "description": "Current status of the lighting system",
+                        "enum": [
+                            "unknown",
+                            "working",
+                            "error",
+                            "authentication_required"
+                        ]
+                    }
+                }
+            },
+            "LightingSystemStatusDto": {
+                "type": "object",
+                "properties": {
+                    "lightingSystemType": {
+                        "type": "string",
+                        "example": "philips_hue",
+                        "description": "Type of lighting system"
+                    },
+                    "lightingHostAddress": {
+                        "type": "string",
+                        "example": "192.168.1.100",
+                        "description": "IP address of the lighting system"
+                    },
+                    "lightingPort": {
+                        "type": "number",
+                        "example": 80,
+                        "description": "Port of the lighting system"
+                    },
+                    "lightingSystemConfigured": {
+                        "type": "boolean",
+                        "example": true,
+                        "description": "Whether the lighting system is configured"
+                    },
+                    "lightingStatus": {
+                        "type": "string",
+                        "example": "working",
+                        "description": "Current status of the lighting system",
+                        "enum": [
+                            "unknown",
+                            "working",
+                            "error",
+                            "authentication_required"
+                        ]
+                    },
+                    "lightingLastTestAt": {
+                        "format": "date-time",
+                        "type": "string",
+                        "example": "2023-01-01T00:00:00Z",
+                        "description": "Last time the lighting system was tested"
+                    },
+                    "requiresAuthentication": {
+                        "type": "boolean",
+                        "example": false,
+                        "description": "Whether the lighting system requires authentication"
+                    },
+                    "capabilities": {
+                        "type": "object",
+                        "description": "Capabilities of the lighting system"
+                    },
+                    "lightingStatusDetails": {
+                        "type": "object",
+                        "description": "Full status details from the edge controller (lightingStatusDetails field)"
+                    }
+                },
+                "required": [
+                    "lightingSystemType",
+                    "lightingSystemConfigured",
+                    "lightingStatus",
+                    "requiresAuthentication"
+                ]
+            },
+            "UserNotificationDto": {
+                "type": "object",
+                "properties": {
+                    "deviceId": {
+                        "type": "string"
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "press_power_button",
+                            "enter_pairing_code",
+                            "authentication_success",
+                            "authentication_failed",
+                            "nanoleaf_pairing",
+                            "nanoleaf_pairing_progress",
+                            "nanoleaf_pairing_success",
+                            "nanoleaf_pairing_failed",
+                            "lighting_authentication_required"
+                        ]
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "instructions": {
+                        "type": "string"
+                    },
+                    "pairingCode": {
+                        "type": "string"
+                    },
+                    "timeout": {
+                        "type": "number"
+                    },
+                    "timestamp": {
+                        "type": "number"
+                    },
+                    "additionalData": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "deviceId",
+                    "action",
+                    "message"
+                ]
+            },
+            "NotificationResponseDto": {
+                "type": "object",
+                "properties": {
+                    "notificationId": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "object"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "notificationId",
+                    "status",
+                    "message"
+                ]
+            },
+            "UpdateDeviceDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "lastSeenAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "lightingSystemType": {
+                        "type": "string"
+                    },
+                    "lightingHostAddress": {
+                        "type": "string"
+                    },
+                    "lightingPort": {
+                        "type": "number"
+                    },
+                    "lightingAuthToken": {
+                        "type": "string"
+                    },
+                    "lightingCustomConfig": {
+                        "type": "object"
+                    },
+                    "lightingSystemConfigured": {
+                        "type": "boolean"
+                    },
+                    "lightingStatus": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AuthResponseDto": {
+                "type": "object",
+                "properties": {
+                    "access_token": {
+                        "type": "string",
+                        "description": "JWT access token",
+                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    },
+                    "refresh_token": {
+                        "type": "string",
+                        "description": "Refresh token for obtaining new access tokens",
+                        "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    },
+                    "token_type": {
+                        "type": "string",
+                        "default": "Bearer",
+                        "description": "Token type",
+                        "example": "Bearer"
+                    },
+                    "expires_in": {
+                        "type": "number",
+                        "description": "Access token expiration time in seconds",
+                        "example": 900
+                    },
+                    "user": {
+                        "type": "object",
+                        "description": "User information",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                            },
+                            "email": {
+                                "type": "string",
+                                "example": "user@example.com"
+                            },
+                            "displayName": {
+                                "type": "string",
+                                "example": "John Doe"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "access_token",
+                    "refresh_token",
+                    "token_type",
+                    "expires_in",
+                    "user"
+                ]
+            },
+            "LoginRequestDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "user@example.com",
+                        "description": "User email address"
+                    },
+                    "password": {
+                        "type": "string",
+                        "minLength": 6,
+                        "example": "password123",
+                        "description": "User password (minimum 6 characters)"
+                    },
+                    "device_name": {
+                        "type": "string",
+                        "example": "My iPhone",
+                        "description": "Optional device name for tracking user sessions"
+                    }
+                },
+                "required": [
+                    "email",
+                    "password"
+                ]
+            },
+            "RefreshTokenDto": {
+                "type": "object",
+                "properties": {
+                    "refresh_token": {
+                        "type": "string",
+                        "description": "Refresh token to exchange for new access token",
+                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                },
+                "required": [
+                    "refresh_token"
+                ]
+            },
+            "ValidateTokenDto": {
+                "type": "object",
+                "properties": {
+                    "token": {
+                        "type": "string",
+                        "description": "JWT token to validate",
+                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                },
+                "required": [
+                    "token"
+                ]
+            }
+        }
+    }
+}

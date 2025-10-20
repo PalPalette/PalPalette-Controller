@@ -26,7 +26,9 @@ private:
     void handleSave(AsyncWebServerRequest *request);
     void handleStatus(AsyncWebServerRequest *request);
     void handleReset(AsyncWebServerRequest *request);
+    void handleScanNetworks(AsyncWebServerRequest *request);
     String getSetupPageHTML();
+    String scanAvailableNetworks();
 
 public:
     WiFiManager();
