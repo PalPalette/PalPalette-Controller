@@ -4,6 +4,8 @@
 
 This is the completely refactored ESP32 firmware for the PalPalette system, designed for self-setup capability and open-source distribution. Users can now flash the firmware and configure devices independently without pre-generated credentials.
 
+> **Development Status**: This firmware is actively maintained and currently supports Nanoleaf panel integration. Additional lighting systems (WS2812, WLED) have architectural support but are planned for future releases.
+
 ## Key Features
 
 ### 🔄 Self-Setup System
@@ -35,9 +37,10 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 ## Hardware Compatibility
 
 - **Primary Target**: Seeed XIAO ESP32C3
-- **Secondary Target**: ESP8266 NodeMCU v2
+- **Secondary Target**: ESP8266 NodeMCU v2 (experimental support)
 - **Memory Requirements**: Minimum 4MB flash memory
 - **WiFi Requirements**: 2.4GHz WiFi capability
+- **Lighting Systems**: Currently supports Nanoleaf panels (Aurora, Canvas, Shapes)
 
 ## Installation
 
@@ -65,10 +68,10 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 3. **Build and Upload**:
 
    ```bash
-   # For ESP32 (default)
+   # For Seeed XIAO ESP32C3 (default)
    pio run -t upload
 
-   # For ESP8266
+   # For ESP8266 NodeMCU v2 (experimental)
    pio run -e esp8266 -t upload
    ```
 
@@ -87,15 +90,16 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 
 ### Step 2: WiFi & Lighting Configuration
 
-1. Device will create a WiFi access point: `PalPalette-Setup-XXXXXX`
+1. Device will create a WiFi access point: `PalPalette-Setup-XXXXXX` (XXXXXX = last 6 chars of MAC address)
 2. Connect to this network using password: `setup123`
-3. Open a web browser and navigate to any website (captive portal will redirect)
-4. Configure your settings:
-   - **WiFi Credentials**: Enter your network SSID and password
-   - **Server URL**: Optionally set a custom backend server
-   - **Lighting System**: Select your lighting hardware (Nanoleaf, WS2812, etc.)
-   - **Hardware Details**: Enter IP address or enable auto-discovery
-5. Click "Save Settings & Connect"
+3. Open a web browser and navigate to any website (captive portal will redirect automatically)
+4. The setup page provides the following options:
+   - **WiFi Network Scan**: Automatically scans and displays available networks
+   - **WiFi Credentials**: Select network and enter password
+   - **Server URL**: Configure custom backend server (optional, defaults to built-in server)
+   - **Lighting System**: Currently supports Nanoleaf only
+   - **Nanoleaf Configuration**: Enter IP address or leave empty for auto-discovery
+5. Click "Save Settings & Connect" to apply configuration
 
 ### Step 3: Device Registration
 
@@ -118,7 +122,7 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 
 - **AP SSID**: `PalPalette-Setup-XXXXXX` (XXXXXX = last 6 chars of MAC)
 - **AP Password**: `setup123`
-- **Default Server**: `ws://192.168.1.100:3001`
+- **Default Server**: `ws://your-server:3001/ws`
 - **HTTP API Port**: `3000`
 - **WebSocket Port**: `3001`
 
@@ -127,7 +131,7 @@ This is the completely refactored ESP32 firmware for the PalPalette system, desi
 Server URL can be customized during initial setup or by editing `config.h`:
 
 ```cpp
-#define DEFAULT_SERVER_URL "ws://your-server.com:3001"
+#define DEFAULT_SERVER_URL "ws://your-server:3001/ws"
 ```
 
 ## API Integration
@@ -148,19 +152,20 @@ POST http://server:3000/devices/register
 
 **Outgoing Messages (Device → Backend):**
 
-- **registerDevice**: Device registration with backend
-- **deviceStatus**: Regular status updates and heartbeat
-- **lightingCapabilities**: Report supported lighting systems
-- **authenticationRequest**: Request lighting system authentication
-- **errorReport**: Report system errors for monitoring
+- **registerDevice**: Initial device registration with backend server
+- **deviceStatus**: Regular status updates including WiFi, memory, and system health
+- **lightingSystemStatus**: Lighting system configuration and authentication status
 
 **Incoming Messages (Backend → Device):**
 
-- **deviceClaimed**: User claims device with pairing code
-- **colorPalette**: Receive color palettes for display
-- **lightingConfig**: Configure connected lighting system
-- **systemCommand**: Administrative commands (restart, reset, etc.)
-- **authenticationResponse**: Authentication tokens and configuration
+- **colorPalette**: Receive color palettes for display on lighting system
+- **deviceRegistered**: Confirmation of successful device registration
+- **deviceClaimed**: User successfully claims device with pairing code
+- **setupComplete**: Setup process completed, device ready for operation
+- **lightingSystemConfig**: Configure lighting system (type, host, authentication)
+- **testLightingSystem**: Test lighting system configuration and connectivity
+- **factoryReset**: Administrative command to reset device to factory defaults
+- **deviceStatusAck**: Acknowledgment of received device status updates
 
 ## Debugging
 
@@ -185,28 +190,45 @@ Monitor the serial output for these status messages:
 - `📶 WiFi connected successfully!` - WiFi connection established
 - `✅ Device registered with HTTP API` - Backend registration successful
 - `🔌 WebSocket connected successfully!` - Real-time communication active
-- `� Lighting system ready` - Hardware controller initialized
+- `💡 Lighting system ready` - Hardware controller initialized
 - `🍃 Nanoleaf device discovered` - Automatic mDNS discovery successful
 - `🔐 Authentication required` - User action needed for lighting system
-- `�🔑 Pairing Code: XXXXXX` - Code for mobile app claiming
+- `🔑 Pairing Code: XXXXXX` - Code for mobile app claiming
 - `🎉 Device has been claimed!` - Device successfully claimed by user
 - `🎨 Color palette received` - New colors being displayed
 - `⚠ Error recovery in progress` - System handling errors automatically
 - `🔧 Watchdog fed` - System stability monitoring active
 
+### Error Codes
+
+The firmware includes comprehensive error handling with the following error codes:
+
+- **Error 1**: WiFi Connection Failed
+- **Error 2**: Device Registration Failed
+- **Error 3**: WebSocket Connection Failed
+- **Error 4**: Memory Allocation Failed
+- **Error 5**: Lighting System Failed
+- **Error 6**: Preferences Access Failed
+- **Error 7**: HTTP Request Failed
+- **Error 8**: JSON Parsing Failed
+- **Error 9**: Watchdog Initialization Failed
+- **Error 10**: Captive Portal Failed
+
+Each error triggers progressive recovery strategies: retry operation → restart component → soft restart → hard restart → factory reset.
+
 ## Architecture Details
 
 ### State Machine
 
-The firmware uses a state machine for robust operation:
+The firmware uses a 7-state state machine for robust operation:
 
-1. **INIT** - System initialization
-2. **WIFI_SETUP** - Captive portal or stored credentials
-3. **WIFI_CONNECTING** - Attempting WiFi connection
-4. **DEVICE_REGISTRATION** - Registering with backend
-5. **WAITING_FOR_CLAIM** - Awaiting user claiming via app
-6. **OPERATIONAL** - Normal operation, receiving color palettes
-7. **ERROR** - Error state with recovery attempts
+1. **STATE_INIT** - System initialization and hardware setup
+2. **STATE_WIFI_SETUP** - Determine WiFi connection method (stored credentials or captive portal)
+3. **STATE_WIFI_CONNECTING** - Attempting WiFi connection with retry logic
+4. **STATE_DEVICE_REGISTRATION** - Registering device with backend server
+5. **STATE_WAITING_FOR_CLAIM** - Awaiting user to claim device via mobile app
+6. **STATE_OPERATIONAL** - Normal operation, receiving and displaying color palettes
+7. **STATE_ERROR** - Error handling state with progressive recovery strategies
 
 ### File Structure
 
@@ -231,9 +253,12 @@ The firmware now includes a comprehensive modular lighting system supporting mul
 
 #### 🎯 **Supported Lighting Hardware**
 
-- **Nanoleaf Panels**: Aurora, Canvas, Shapes with automatic mDNS discovery
-- **WS2812 LED Strips**: Addressable RGB LED strips (planned)
-- **Generic RGB**: Standard RGB controllers (planned)
+- **Nanoleaf Panels**: Aurora, Canvas, Shapes with automatic mDNS discovery and authentication
+- **WS2812 LED Strips**: Architecture ready, implementation planned for future release
+- **WLED Integration**: Architecture ready, implementation planned for future release
+- **Generic RGB**: Architecture ready, implementation planned for future release
+
+**Current Status**: Only Nanoleaf panels are fully implemented and supported in this version.
 
 #### 🔧 **Key Features**
 
@@ -303,14 +328,15 @@ Advanced error management system with sophisticated recovery strategies:
 - Verify mobile app is connected to same network/server
 - Try resetting device and reclaiming
 
-**Lighting system not connecting**:
+**Nanoleaf panels not connecting**:
 
-- **For Nanoleaf**: Ensure panels are powered and on same network
-- **For Nanoleaf**: Press and hold controller button during authentication
-- Check lighting system IP address in setup portal
-- Verify lighting hardware is supported and compatible
-- Try mDNS discovery: Leave IP address empty for auto-discovery
-- Monitor serial output for specific error messages
+- Ensure Nanoleaf panels are powered on and connected to the same WiFi network
+- Verify panels are discoverable (check Nanoleaf app connectivity)
+- For auto-discovery: Leave IP address empty in setup portal
+- For manual setup: Find Nanoleaf IP address in router or use Nanoleaf app
+- **Authentication**: Press and hold the power button on Nanoleaf controller for 5-7 seconds when prompted by mobile app
+- Check serial monitor for mDNS discovery messages and authentication status
+- Try factory reset of Nanoleaf panels if authentication repeatedly fails
 
 **System stability issues**:
 
@@ -352,18 +378,21 @@ The modular architecture makes adding features straightforward:
 
 To add support for new lighting hardware:
 
-1. **Create Controller Class**: Extend `LightController` base class
-2. **Implement Interface**: Provide all required methods (initialize, displayPalette, etc.)
-3. **Register with Factory**: Add to `LightControllerFactory` in `LightController.cpp`
-4. **Add Configuration**: Update setup portal HTML in `WiFiManager.cpp`
-5. **Test Integration**: Verify with debug commands and WebSocket events
+1. **Create Controller Class**: Extend `LightController` base class in `src/lighting/controllers/`
+2. **Implement Interface**: Provide all required methods (initialize, displayPalette, turnOff, etc.)
+3. **Register with Factory**: Add to supported systems array and factory method in `LightController.cpp`
+4. **Add to Validation**: Update `isSystemSupported` method in `LightController.cpp`
+5. **Update Setup Portal**: Add new system option to captive portal HTML in `WiFiManager.cpp`
+6. **Test Integration**: Verify with debug commands and WebSocket communication
+
+**Example**: The current `NanoleafController` implementation provides a complete reference for adding new lighting systems.
 
 ## Version History
 
 ### Version 2.0.0 (Current)
 
 - **Complete Modular Architecture**: Separated core, lighting, and error handling systems
-- **Advanced Lighting Support**: Nanoleaf panels with mDNS auto-discovery
+- **Nanoleaf Lighting Support**: Full Nanoleaf panel integration with mDNS auto-discovery and authentication
 - **Comprehensive Error Handling**: Recovery strategies and exponential backoff
 - **Self-Setup Capability**: Enhanced captive portal with lighting configuration
 - **Watchdog Timer System**: Automatic system stability monitoring
