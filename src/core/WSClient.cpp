@@ -21,6 +21,14 @@ void WSClient::begin(const String &url)
 {
     serverUrl = url;
 
+    // Configure SSL/TLS if using WSS
+    if (serverUrl.startsWith("wss://"))
+    {
+        Serial.println("🔒 Configuring secure WebSocket (WSS) with certificate validation");
+        client.setCACert(root_ca);
+        Serial.println("✅ Root CA certificate loaded for WSS");
+    }
+
     // Setup WebSocket event callbacks
     client.onMessage([this](WebsocketsMessage message)
                      { onMessageCallback(message); });

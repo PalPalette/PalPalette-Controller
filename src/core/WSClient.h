@@ -6,6 +6,7 @@
 #include "DeviceManager.h"
 #include "../lighting/LightManager.h"
 #include "../config.h"
+#include "../root_ca.h"
 
 using namespace websockets;
 

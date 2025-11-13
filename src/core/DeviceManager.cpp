@@ -2,7 +2,9 @@
 #include "DeviceManager.h"
 #include "config.h"
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include "../root_ca.h"
 
 DeviceManager::DeviceManager() : lastStatusUpdate(0)
 {
@@ -224,25 +226,42 @@ bool DeviceManager::registerMinimalWithServer(const String &serverUrl)
         return false;
     }
 
-    // Convert WebSocket URL to HTTP URL for registration
+    // Convert WebSocket URL to HTTPS URL for registration
     String httpUrl = serverUrl;
     httpUrl.replace("ws://", "http://");
     httpUrl.replace("wss://", "https://");
 
-    // Remove port if it's the WebSocket port, add API endpoint
+    // Remove WebSocket port and path, add API endpoint
+    // For HTTPS, Nginx handles routing - no need to specify port 3000
     int portIndex = httpUrl.lastIndexOf(':');
-    if (portIndex > 7)
-    { // After http://
+    if (portIndex > 8) // After https://
+    {
         String baseUrl = httpUrl.substring(0, portIndex);
-        httpUrl = baseUrl + ":3000/devices/register"; // API is on port 3000
+        // Remove any path after the port
+        int pathIndex = baseUrl.indexOf('/', 8);
+        if (pathIndex > 0)
+        {
+            baseUrl = baseUrl.substring(0, pathIndex);
+        }
+        httpUrl = baseUrl + "/devices/register";
     }
     else
     {
+        // Remove any path
+        int pathIndex = httpUrl.indexOf('/', 8);
+        if (pathIndex > 0)
+        {
+            httpUrl = httpUrl.substring(0, pathIndex);
+        }
         httpUrl += "/devices/register";
     }
 
+    // Configure secure client with root CA certificate
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(root_ca);
+
     HTTPClient http;
-    http.begin(httpUrl);
+    http.begin(secureClient, httpUrl);
     http.addHeader("Content-Type", "application/json");
 
     // Minimal registration - only required field per backend documentation
@@ -353,25 +372,42 @@ bool DeviceManager::registerWithServer(const String &serverUrl)
         return false;
     }
 
-    // Convert WebSocket URL to HTTP URL for registration
+    // Convert WebSocket URL to HTTPS URL for registration
     String httpUrl = serverUrl;
     httpUrl.replace("ws://", "http://");
     httpUrl.replace("wss://", "https://");
 
-    // Remove port if it's the WebSocket port, add API endpoint
+    // Remove WebSocket port and path, add API endpoint
+    // For HTTPS, Nginx handles routing - no need to specify port
     int portIndex = httpUrl.lastIndexOf(':');
-    if (portIndex > 7)
-    { // After http://
+    if (portIndex > 8) // After https://
+    {
         String baseUrl = httpUrl.substring(0, portIndex);
-        httpUrl = baseUrl + ":3000/devices/register"; // Assume API is on port 3000
+        // Remove any path after the port
+        int pathIndex = baseUrl.indexOf('/', 8);
+        if (pathIndex > 0)
+        {
+            baseUrl = baseUrl.substring(0, pathIndex);
+        }
+        httpUrl = baseUrl + "/devices/register";
     }
     else
     {
+        // Remove any path
+        int pathIndex = httpUrl.indexOf('/', 8);
+        if (pathIndex > 0)
+        {
+            httpUrl = httpUrl.substring(0, pathIndex);
+        }
         httpUrl += "/devices/register";
     }
 
+    // Configure secure client with root CA certificate
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(root_ca);
+
     HTTPClient http;
-    http.begin(httpUrl);
+    http.begin(secureClient, httpUrl);
     http.addHeader("Content-Type", "application/json");
 
     // Prepare registration data according to RegisterDeviceDto schema
@@ -527,24 +563,36 @@ bool DeviceManager::updateStatus(const String &serverUrl, LightManager *lightMan
         return false;
     }
 
-    // Convert WebSocket URL to HTTP URL for status update
+    // Convert WebSocket URL to HTTPS URL for status update
     String httpUrl = serverUrl;
     httpUrl.replace("ws://", "http://");
     httpUrl.replace("wss://", "https://");
 
+    // Remove WebSocket port and path, add API endpoint
+    // For HTTPS, Nginx handles routing - no need to specify port
     int portIndex = httpUrl.lastIndexOf(':');
-    if (portIndex > 7)
+    if (portIndex > 8) // After https://
     {
         String baseUrl = httpUrl.substring(0, portIndex);
-        httpUrl = baseUrl + ":3000/devices/" + deviceInfo.deviceId + "/status";
+        httpUrl = baseUrl + "/devices/" + deviceInfo.deviceId + "/status";
     }
     else
     {
+        // Remove any path
+        int pathIndex = httpUrl.indexOf('/', 8);
+        if (pathIndex > 0)
+        {
+            httpUrl = httpUrl.substring(0, pathIndex);
+        }
         httpUrl += "/devices/" + deviceInfo.deviceId + "/status";
     }
 
+    // Configure secure client with root CA certificate
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(root_ca);
+
     HTTPClient http;
-    http.begin(httpUrl);
+    http.begin(secureClient, httpUrl);
     http.addHeader("Content-Type", "application/json");
 
     // Create status update payload according to UpdateStatusDto schema
