@@ -243,7 +243,6 @@ void WiFiManager::handleSave(AsyncWebServerRequest *request)
 {
     String ssid = "";
     String password = "";
-    String serverUrl = "";
 
     Serial.println("🔍 DEBUG: Processing captive portal form submission...");
 
@@ -257,19 +256,10 @@ void WiFiManager::handleSave(AsyncWebServerRequest *request)
         password = request->getParam("password", true)->value();
         Serial.println("  - Password: [hidden]");
     }
-    if (request->hasParam("server", true))
-    {
-        serverUrl = request->getParam("server", true)->value();
-        Serial.println("  - Server URL: '" + serverUrl + "'");
-    }
 
     if (ssid.length() > 0)
     {
         saveWiFiCredentials(ssid, password);
-        if (serverUrl.length() > 0)
-        {
-            setServerURL(serverUrl);
-        }
 
         request->send(200, "text/html",
                       "<html><body><h1>Settings Saved!</h1>"
@@ -317,8 +307,6 @@ void WiFiManager::handleReset(AsyncWebServerRequest *request)
 
 String WiFiManager::getSetupPageHTML()
 {
-    String serverUrl = getServerURL();
-
     String html = "<!DOCTYPE html><html><head>";
     html += "<meta charset='UTF-8'>";
     html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
@@ -406,11 +394,6 @@ String WiFiManager::getSetupPageHTML()
     html += "<div class='form-group'>";
     html += "<label for='password'>WiFi Password:</label>";
     html += "<input type='password' id='password' name='password' placeholder='Enter your WiFi password (leave blank if none)'>";
-    html += "</div>";
-    html += "<div class='form-group'>";
-    html += "<label for='server'>Server URL (optional):</label>";
-    html += "<input type='text' id='server' name='server' value='" + serverUrl + "' placeholder='ws://your-server.com:3001'>";
-    html += "<small style='color: #666;'>Default server will be used if left blank</small>";
     html += "</div>";
     html += "<div style='background: #e9f4ff; padding: 15px; border-radius: 5px; margin-bottom: 20px;'>";
     html += "<strong>💡 Lighting System Configuration</strong><br>";

@@ -15,11 +15,13 @@
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
+#include <time.h>
 #include "config.h"
 #include "core/WiFiManager.h"
 #include "core/DeviceManager.h"
 #include "core/WSClient.h"
 #include "lighting/LightManager.h"
+#include "root_ca.h"
 
 // Error Handling System
 class ErrorHandler
@@ -604,6 +606,34 @@ void handleWiFiConnecting()
         // Success! Reset backoff and proceed
         wifiRetryBackoff.reset();
         attemptInProgress = false;
+
+        // Synchronize time with NTP servers for SSL certificate validation
+        Serial.println("⏰ Synchronizing time with NTP servers...");
+        configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+
+        // Wait for time to be set
+        struct tm timeinfo;
+        int attempts = 0;
+        while (!getLocalTime(&timeinfo) && attempts < 10)
+        {
+            Serial.print(".");
+            delay(1000);
+            attempts++;
+        }
+
+        if (getLocalTime(&timeinfo))
+        {
+            Serial.println();
+            Serial.printf("✅ Time synchronized: %s", asctime(&timeinfo));
+        }
+        else
+        {
+            Serial.println();
+            Serial.println("⚠️ Failed to synchronize time, but continuing...");
+        }
+
+        // Root certificate is embedded, no download needed
+        Serial.println("🔐 Using embedded root certificate for secure connections...");
 
         // Now that WiFi is connected, initialize lighting system with saved configuration
         Serial.println("🔄 WiFi connected - initializing lighting system with saved configuration...");

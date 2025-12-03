@@ -19,13 +19,32 @@ WSClient::~WSClient()
 
 void WSClient::begin(const String &url)
 {
-    serverUrl = url;
+    // Convert HTTPS URL to WSS URL for WebSocket connection
+    if (url.startsWith("https://"))
+    {
+        serverUrl = url;
+        serverUrl.replace("https://", "wss://");
+        serverUrl += "/ws"; // Add WebSocket endpoint path
+        Serial.println("🔄 Converted HTTPS URL to WSS: " + serverUrl);
+    }
+    else if (url.startsWith("http://"))
+    {
+        serverUrl = url;
+        serverUrl.replace("http://", "ws://");
+        serverUrl += "/ws"; // Add WebSocket endpoint path
+        Serial.println("🔄 Converted HTTP URL to WS: " + serverUrl);
+    }
+    else
+    {
+        // Already a WebSocket URL
+        serverUrl = url;
+    }
 
     // Configure SSL/TLS if using WSS
     if (serverUrl.startsWith("wss://"))
     {
         Serial.println("🔒 Configuring secure WebSocket (WSS) with certificate validation");
-        client.setCACert(root_ca);
+        client.setCACert(fallback_root_ca);
         Serial.println("✅ Root CA certificate loaded for WSS");
     }
 
@@ -499,6 +518,16 @@ void WSClient::handleDeviceClaimed(JsonDocument &doc)
         if (lightManager->authenticateLightingSystem())
         {
             Serial.println("✅ Lighting system authentication completed");
+
+            // Send lighting configuration to backend for persistence
+            if (deviceManager->updateLightingConfiguration(serverUrl, lightManager))
+            {
+                Serial.println("✅ Lighting configuration synced to backend");
+            }
+            else
+            {
+                Serial.println("⚠️  Failed to sync lighting configuration to backend");
+            }
         }
         else
         {
@@ -590,6 +619,16 @@ void WSClient::handleLightingSystemConfig(JsonDocument &doc)
                 if (authResult)
                 {
                     Serial.println("✅ Nanoleaf mDNS discovery and authentication completed successfully!");
+
+                    // Send lighting configuration to backend for persistence
+                    if (deviceManager->updateLightingConfiguration(serverUrl, lightManager))
+                    {
+                        Serial.println("✅ Lighting configuration synced to backend");
+                    }
+                    else
+                    {
+                        Serial.println("⚠️  Failed to sync lighting configuration to backend");
+                    }
                 }
                 else
                 {
@@ -633,6 +672,16 @@ void WSClient::handleLightingSystemConfig(JsonDocument &doc)
                 if (lightManager->authenticateLightingSystem())
                 {
                     Serial.println("✅ Nanoleaf authentication and discovery completed successfully!");
+
+                    // Send lighting configuration to backend for persistence
+                    if (deviceManager->updateLightingConfiguration(serverUrl, lightManager))
+                    {
+                        Serial.println("✅ Lighting configuration synced to backend");
+                    }
+                    else
+                    {
+                        Serial.println("⚠️  Failed to sync lighting configuration to backend");
+                    }
                 }
                 else
                 {
@@ -901,6 +950,16 @@ bool WSClient::retryLightingAuthentication()
     if (lightManager->authenticateLightingSystem())
     {
         Serial.println("✅ Lighting authentication retry successful");
+
+        // Send lighting configuration to backend for persistence
+        if (deviceManager->updateLightingConfiguration(serverUrl, lightManager))
+        {
+            Serial.println("✅ Lighting configuration synced to backend");
+        }
+        else
+        {
+            Serial.println("⚠️  Failed to sync lighting configuration to backend");
+        }
 
         // Send updated status after successful authentication
         sendLightingSystemStatus();

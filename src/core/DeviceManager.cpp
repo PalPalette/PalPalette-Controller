@@ -192,10 +192,13 @@ bool DeviceManager::saveDeviceInfo()
 
 bool DeviceManager::loadDeviceInfo()
 {
+    Serial.println("📂 Loading device info from NVS flash storage...");
+
     String savedDeviceId = preferences.getString(PREF_DEVICE_ID, "");
 
     if (savedDeviceId.length() == 0)
     {
+        Serial.println("⚠️  No device ID found in NVS - treating as first boot or NVS data loss");
         return false;
     }
 
@@ -214,7 +217,17 @@ bool DeviceManager::loadDeviceInfo()
         deviceInfo.pairingCode = "";
     }
 
-    Serial.println("📂 Device info loaded from preferences");
+    Serial.println("✅ Device info loaded from NVS");
+    Serial.println("   Device ID: " + deviceInfo.deviceId);
+    Serial.println("   MAC: " + deviceInfo.macAddress);
+    Serial.println("   Pairing Code: " + deviceInfo.pairingCode);
+    Serial.println("   Local Provisioned State: " + String(deviceInfo.isProvisioned ? "YES" : "NO"));
+
+    if (!deviceInfo.isProvisioned)
+    {
+        Serial.println("⚠️  Local NVS shows device NOT provisioned - will verify with backend");
+    }
+
     return true;
 }
 
@@ -258,7 +271,7 @@ bool DeviceManager::registerMinimalWithServer(const String &serverUrl)
 
     // Configure secure client with root CA certificate
     WiFiClientSecure secureClient;
-    secureClient.setCACert(root_ca);
+    secureClient.setCACert(fallback_root_ca);
 
     HTTPClient http;
     http.begin(secureClient, httpUrl);
@@ -327,21 +340,127 @@ bool DeviceManager::registerMinimalWithServer(const String &serverUrl)
                 Serial.println("🔑 Server assigned Pairing Code: " + deviceInfo.pairingCode);
             }
 
-            // Check if device is already claimed/provisioned
+            // Check if device is already claimed/provisioned - MULTIPLE CHECKS FOR ROBUSTNESS
+            bool isClaimed = false;
+            String ownerInfo = "";
+
+            // Method 1: Check 'status' field
             if (deviceData["status"].is<String>())
             {
                 String deviceStatus = deviceData["status"].as<String>();
-                Serial.println("📊 Device Status: " + deviceStatus);
-
+                Serial.println("📊 Backend Device Status: " + deviceStatus);
                 if (deviceStatus == "claimed")
                 {
-                    deviceInfo.isProvisioned = true;
-                    Serial.println("✅ Device is already claimed - marking as provisioned");
+                    isClaimed = true;
                 }
-                else
+            }
+
+            // Method 2: Check 'isProvisioned' field from backend
+            if (deviceData["isProvisioned"].is<bool>())
+            {
+                bool backendProvisioned = deviceData["isProvisioned"].as<bool>();
+                Serial.println("📊 Backend isProvisioned: " + String(backendProvisioned ? "true" : "false"));
+                if (backendProvisioned)
                 {
-                    deviceInfo.isProvisioned = false;
-                    Serial.println("📝 Device is not yet claimed - waiting for user pairing");
+                    isClaimed = true;
+                }
+            }
+
+            // Method 3: Check for owner information (definitive proof of claim)
+            if (deviceData["ownerEmail"].is<String>())
+            {
+                String ownerEmail = deviceData["ownerEmail"].as<String>();
+                if (ownerEmail.length() > 0)
+                {
+                    isClaimed = true;
+                    ownerInfo = ownerEmail;
+                    Serial.println("👤 Device Owner Email: " + ownerEmail);
+                }
+            }
+
+            if (deviceData["ownerName"].is<String>())
+            {
+                String ownerName = deviceData["ownerName"].as<String>();
+                if (ownerName.length() > 0)
+                {
+                    isClaimed = true;
+                    if (ownerInfo.length() > 0)
+                    {
+                        ownerInfo = ownerName + " (" + ownerInfo + ")";
+                    }
+                    else
+                    {
+                        ownerInfo = ownerName;
+                    }
+                    Serial.println("👤 Device Owner Name: " + ownerName);
+                }
+            }
+
+            // Apply the result with detailed logging
+            if (isClaimed)
+            {
+                deviceInfo.isProvisioned = true;
+                Serial.println("✅ Device is CLAIMED - marking as provisioned");
+                if (ownerInfo.length() > 0)
+                {
+                    Serial.println("👤 Claimed by: " + ownerInfo);
+                }
+                Serial.println("🔄 Controller provisioning state restored from backend!");
+            }
+            else
+            {
+                deviceInfo.isProvisioned = false;
+                Serial.println("📝 Device is NOT claimed - waiting for user pairing");
+            }
+
+            // Parse and store lighting configuration from backend (if present)
+            if (deviceData["lightingSystem"].is<String>())
+            {
+                String lightingSystem = deviceData["lightingSystem"].as<String>();
+                if (lightingSystem.length() > 0 && lightingSystem != "null")
+                {
+                    Serial.println("\n💡 Backend returned lighting configuration:");
+                    Serial.println("   System Type: " + lightingSystem);
+
+                    // Store in lighting preferences for LightManager to load
+                    Preferences lightingPrefs;
+                    lightingPrefs.begin("light_config", false);
+
+                    lightingPrefs.putString("system_type", lightingSystem);
+                    Serial.println("   ✅ Saved system type to NVS");
+
+                    if (deviceData["lightingHost"].is<String>())
+                    {
+                        String lightingHost = deviceData["lightingHost"].as<String>();
+                        if (lightingHost.length() > 0 && lightingHost != "null")
+                        {
+                            lightingPrefs.putString("host_addr", lightingHost);
+                            Serial.println("   ✅ Saved host address: " + lightingHost);
+                        }
+                    }
+
+                    if (deviceData["lightingPort"].is<int>())
+                    {
+                        int lightingPort = deviceData["lightingPort"].as<int>();
+                        if (lightingPort > 0)
+                        {
+                            lightingPrefs.putInt("port", lightingPort);
+                            Serial.println("   ✅ Saved port: " + String(lightingPort));
+                        }
+                    }
+
+                    if (deviceData["lightingAuthToken"].is<String>())
+                    {
+                        String authToken = deviceData["lightingAuthToken"].as<String>();
+                        if (authToken.length() > 0 && authToken != "null")
+                        {
+                            lightingPrefs.putString("auth_token", authToken);
+                            Serial.println("   ✅ Saved auth token (length: " + String(authToken.length()) + ")");
+                        }
+                    }
+
+                    lightingPrefs.end();
+                    Serial.println("🔄 Lighting configuration restored from backend!\n");
                 }
             }
         }
@@ -404,7 +523,7 @@ bool DeviceManager::registerWithServer(const String &serverUrl)
 
     // Configure secure client with root CA certificate
     WiFiClientSecure secureClient;
-    secureClient.setCACert(root_ca);
+    secureClient.setCACert(fallback_root_ca);
 
     HTTPClient http;
     http.begin(secureClient, httpUrl);
@@ -520,21 +639,127 @@ bool DeviceManager::registerWithServer(const String &serverUrl)
                 Serial.println("🔑 Server assigned Pairing Code: " + deviceInfo.pairingCode);
             }
 
-            // Check if device is already claimed/provisioned
+            // Check if device is already claimed/provisioned - MULTIPLE CHECKS FOR ROBUSTNESS
+            bool isClaimed = false;
+            String ownerInfo = "";
+
+            // Method 1: Check 'status' field
             if (deviceData["status"].is<String>())
             {
                 String deviceStatus = deviceData["status"].as<String>();
-                Serial.println("📊 Device Status: " + deviceStatus);
-
+                Serial.println("📊 Backend Device Status: " + deviceStatus);
                 if (deviceStatus == "claimed")
                 {
-                    deviceInfo.isProvisioned = true;
-                    Serial.println("✅ Device is already claimed - marking as provisioned");
+                    isClaimed = true;
                 }
-                else
+            }
+
+            // Method 2: Check 'isProvisioned' field from backend
+            if (deviceData["isProvisioned"].is<bool>())
+            {
+                bool backendProvisioned = deviceData["isProvisioned"].as<bool>();
+                Serial.println("📊 Backend isProvisioned: " + String(backendProvisioned ? "true" : "false"));
+                if (backendProvisioned)
                 {
-                    deviceInfo.isProvisioned = false;
-                    Serial.println("📝 Device is not yet claimed - waiting for user pairing");
+                    isClaimed = true;
+                }
+            }
+
+            // Method 3: Check for owner information (definitive proof of claim)
+            if (deviceData["ownerEmail"].is<String>())
+            {
+                String ownerEmail = deviceData["ownerEmail"].as<String>();
+                if (ownerEmail.length() > 0)
+                {
+                    isClaimed = true;
+                    ownerInfo = ownerEmail;
+                    Serial.println("👤 Device Owner Email: " + ownerEmail);
+                }
+            }
+
+            if (deviceData["ownerName"].is<String>())
+            {
+                String ownerName = deviceData["ownerName"].as<String>();
+                if (ownerName.length() > 0)
+                {
+                    isClaimed = true;
+                    if (ownerInfo.length() > 0)
+                    {
+                        ownerInfo = ownerName + " (" + ownerInfo + ")";
+                    }
+                    else
+                    {
+                        ownerInfo = ownerName;
+                    }
+                    Serial.println("👤 Device Owner Name: " + ownerName);
+                }
+            }
+
+            // Apply the result with detailed logging
+            if (isClaimed)
+            {
+                deviceInfo.isProvisioned = true;
+                Serial.println("✅ Device is CLAIMED - marking as provisioned");
+                if (ownerInfo.length() > 0)
+                {
+                    Serial.println("👤 Claimed by: " + ownerInfo);
+                }
+                Serial.println("🔄 Controller provisioning state restored from backend!");
+            }
+            else
+            {
+                deviceInfo.isProvisioned = false;
+                Serial.println("📝 Device is NOT claimed - waiting for user pairing");
+            }
+
+            // Parse and store lighting configuration from backend (if present)
+            if (deviceData["lightingSystem"].is<String>())
+            {
+                String lightingSystem = deviceData["lightingSystem"].as<String>();
+                if (lightingSystem.length() > 0 && lightingSystem != "null")
+                {
+                    Serial.println("\n💡 Backend returned lighting configuration:");
+                    Serial.println("   System Type: " + lightingSystem);
+
+                    // Store in lighting preferences for LightManager to load
+                    Preferences lightingPrefs;
+                    lightingPrefs.begin("light_config", false);
+
+                    lightingPrefs.putString("system_type", lightingSystem);
+                    Serial.println("   ✅ Saved system type to NVS");
+
+                    if (deviceData["lightingHost"].is<String>())
+                    {
+                        String lightingHost = deviceData["lightingHost"].as<String>();
+                        if (lightingHost.length() > 0 && lightingHost != "null")
+                        {
+                            lightingPrefs.putString("host_addr", lightingHost);
+                            Serial.println("   ✅ Saved host address: " + lightingHost);
+                        }
+                    }
+
+                    if (deviceData["lightingPort"].is<int>())
+                    {
+                        int lightingPort = deviceData["lightingPort"].as<int>();
+                        if (lightingPort > 0)
+                        {
+                            lightingPrefs.putInt("port", lightingPort);
+                            Serial.println("   ✅ Saved port: " + String(lightingPort));
+                        }
+                    }
+
+                    if (deviceData["lightingAuthToken"].is<String>())
+                    {
+                        String authToken = deviceData["lightingAuthToken"].as<String>();
+                        if (authToken.length() > 0 && authToken != "null")
+                        {
+                            lightingPrefs.putString("auth_token", authToken);
+                            Serial.println("   ✅ Saved auth token (length: " + String(authToken.length()) + ")");
+                        }
+                    }
+
+                    lightingPrefs.end();
+                    Serial.println("🔄 Lighting configuration restored from backend!\n");
                 }
             }
         }
@@ -589,7 +814,7 @@ bool DeviceManager::updateStatus(const String &serverUrl, LightManager *lightMan
 
     // Configure secure client with root CA certificate
     WiFiClientSecure secureClient;
-    secureClient.setCACert(root_ca);
+    secureClient.setCACert(fallback_root_ca);
 
     HTTPClient http;
     http.begin(secureClient, httpUrl);
@@ -629,18 +854,144 @@ bool DeviceManager::updateStatus(const String &serverUrl, LightManager *lightMan
     return false;
 }
 
-void DeviceManager::setProvisioned(bool provisioned)
+bool DeviceManager::updateLightingConfiguration(const String &serverUrl, LightManager *lightManager)
 {
-    deviceInfo.isProvisioned = provisioned;
-    preferences.putBool(PREF_IS_PROVISIONED, provisioned);
-
-    if (provisioned)
+    if (serverUrl.length() == 0 || deviceInfo.deviceId.length() == 0)
     {
-        Serial.println("✅ Device marked as provisioned");
+        Serial.println("❌ Cannot update lighting config: No server URL or device ID");
+        return false;
+    }
+
+    if (!lightManager)
+    {
+        Serial.println("❌ Cannot update lighting config: No LightManager provided");
+        return false;
+    }
+
+    // Get current lighting configuration
+    String systemType = lightManager->getCurrentSystemType();
+    if (systemType.length() == 0)
+    {
+        Serial.println("⚠️  No lighting system configured, skipping backend update");
+        return false;
+    }
+
+    Serial.println("📤 Sending lighting configuration to backend...");
+    Serial.println("   System Type: " + systemType);
+
+    // Convert WebSocket URL to HTTPS URL
+    String httpUrl = serverUrl;
+    httpUrl.replace("ws://", "http://");
+    httpUrl.replace("wss://", "https://");
+
+    // Build URL: /devices/{id}/lighting
+    int portIndex = httpUrl.lastIndexOf(':');
+    if (portIndex > 8) // After https://
+    {
+        String baseUrl = httpUrl.substring(0, portIndex);
+        httpUrl = baseUrl + "/devices/" + deviceInfo.deviceId + "/lighting";
     }
     else
     {
-        Serial.println("⚠ Device marked as not provisioned");
+        int pathIndex = httpUrl.indexOf('/', 8);
+        if (pathIndex > 0)
+        {
+            httpUrl = httpUrl.substring(0, pathIndex);
+        }
+        httpUrl += "/devices/" + deviceInfo.deviceId + "/lighting";
+    }
+
+    // Configure secure client
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(fallback_root_ca);
+
+    HTTPClient http;
+    http.begin(secureClient, httpUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    // Build payload according to UpdateLightingSystemDto schema
+    JsonDocument doc;
+    doc["lightingSystemType"] = systemType;
+
+    // Load config from preferences to get current values
+    Preferences lightingPrefs;
+    lightingPrefs.begin("light_config", true);
+
+    String hostAddr = lightingPrefs.getString("host_addr", "");
+    int port = lightingPrefs.getInt("port", 0);
+    String authToken = lightingPrefs.getString("auth_token", "");
+
+    lightingPrefs.end();
+
+    if (hostAddr.length() > 0)
+    {
+        doc["lightingHostAddress"] = hostAddr;
+        Serial.println("   Host: " + hostAddr);
+    }
+
+    if (port > 0)
+    {
+        doc["lightingPort"] = port;
+        Serial.println("   Port: " + String(port));
+    }
+
+    if (authToken.length() > 0)
+    {
+        doc["lightingAuthToken"] = authToken;
+        Serial.println("   Auth Token: (length: " + String(authToken.length()) + ")");
+    }
+
+    doc["lightingSystemConfigured"] = true;
+    doc["lightingStatus"] = "working";
+
+    String payload;
+    serializeJson(doc, payload);
+
+    Serial.println("🌐 PUT " + httpUrl);
+
+    int httpResponseCode = http.PUT(payload);
+
+    if (httpResponseCode == 200)
+    {
+        Serial.println("✅ Lighting configuration sent to backend successfully");
+        http.end();
+        return true;
+    }
+    else
+    {
+        Serial.println("❌ Failed to send lighting configuration to backend");
+        Serial.println("📊 HTTP Response Code: " + String(httpResponseCode));
+        if (httpResponseCode > 0)
+        {
+            Serial.println("📨 Response: " + http.getString());
+        }
+        http.end();
+        return false;
+    }
+}
+
+void DeviceManager::setProvisioned(bool provisioned)
+{
+    deviceInfo.isProvisioned = provisioned;
+
+    // Save to NVS with verification
+    size_t written = preferences.putBool(PREF_IS_PROVISIONED, provisioned);
+
+    if (written > 0)
+    {
+        if (provisioned)
+        {
+            Serial.println("✅ Device marked as provisioned (saved to NVS)");
+        }
+        else
+        {
+            Serial.println("⚠️  Device marked as not provisioned (saved to NVS)");
+        }
+    }
+    else
+    {
+        Serial.println("❌ ERROR: Failed to save provisioned state to NVS!");
+        Serial.println("⚠️  This may indicate NVS storage issues");
     }
 }
 

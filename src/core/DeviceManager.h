@@ -50,6 +50,7 @@ public:
     bool registerMinimalWithServer(const String &serverUrl);
     bool registerWithServer(const String &serverUrl);
     bool updateStatus(const String &serverUrl, LightManager *lightManager = nullptr);
+    bool updateLightingConfiguration(const String &serverUrl, LightManager *lightManager);
     void setProvisioned(bool provisioned);
     bool isProvisioned();
     String getDeviceId();
