@@ -1,7 +1,7 @@
 #include "WSClient.h"
 
-WSClient::WSClient(DeviceManager *devManager, LightManager *lightMgr)
-    : deviceManager(devManager), lightManager(lightMgr), isConnected(false),
+WSClient::WSClient(DeviceManager *devManager, LightManager *lightMgr, WiFiManager *wifiMgr)
+    : deviceManager(devManager), lightManager(lightMgr), wifiManager(wifiMgr), isConnected(false),
       lastHeartbeat(0), lastPongReceived(0), lastConnectionAttempt(0),
       retryAttempts(0), lastRetryReset(millis())
 {
@@ -853,6 +853,12 @@ void WSClient::setLightManager(LightManager *lightMgr)
     }
 }
 
+void WSClient::setWiFiManager(WiFiManager *wifiMgr)
+{
+    wifiManager = wifiMgr;
+    Serial.println("🔧 WiFi manager set for WebSocket client");
+}
+
 void WSClient::handleUserNotification(const String &action, const String &instructions, int timeout)
 {
     Serial.println("🔔 Handling user notification: " + action);
@@ -1076,9 +1082,10 @@ void WSClient::sendDeviceStatus()
 
 void WSClient::handleFactoryReset(JsonDocument &doc)
 {
-    Serial.println("🔄 Factory reset command received via WebSocket");
+    Serial.println("🏭 Factory reset command received from backend");
+    Serial.println("⚠️  Device will be completely reset and restarted!");
 
-    // Send acknowledgment back to backend
+    // Send acknowledgment back to backend before we reset
     if (isClientConnected())
     {
         JsonDocument response;
@@ -1090,25 +1097,52 @@ void WSClient::handleFactoryReset(JsonDocument &doc)
         serializeJson(response, message);
         sendMessage(message);
 
-        Serial.println("📤 Sent factory reset acknowledgment");
+        Serial.println("📤 Sent factory reset acknowledgment to backend");
     }
 
-    // Give a moment for the message to be sent
-    delay(500);
+    // Give time for the acknowledgment to be sent
+    delay(1000);
 
-    // Perform the actual factory reset
-    if (deviceManager)
-    {
-        deviceManager->resetDevice();
-    }
+    // Disconnect WebSocket cleanly
+    Serial.println("🔌 Disconnecting WebSocket...");
+    disconnect();
 
-    // Also reset lighting system configuration (Nanoleaf auth tokens, etc.)
+    // Reset lighting system configuration (clears Nanoleaf auth tokens, etc.)
     if (lightManager)
     {
-        Serial.println("🔄 Resetting lighting system configuration...");
+        Serial.println("💡 Resetting lighting system configuration...");
         lightManager->resetConfiguration();
     }
 
-    // Reset will restart the device, so this code won't be reached
-    Serial.println("🔄 Factory reset initiated, device will restart...");
+    // Reset device data (clears device ID, pairing code, etc.)
+    if (deviceManager)
+    {
+        Serial.println("🔄 Resetting device data...");
+        deviceManager->resetDevice();
+    }
+
+    // Clear WiFi credentials and settings
+    if (wifiManager)
+    {
+        Serial.println("📶 Clearing WiFi credentials...");
+        wifiManager->clearWiFiCredentials();
+    }
+    else
+    {
+        Serial.println("⚠️  Warning: WiFiManager not available, some settings may persist");
+    }
+
+    // Disconnect WiFi completely
+    Serial.println("📡 Disconnecting WiFi...");
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+
+    Serial.println("✅ Factory reset complete - restarting device...");
+    Serial.println("🔄 Device will start in setup mode with new credentials");
+
+    // Give time for serial output to complete
+    delay(2000);
+
+    // Perform hard restart
+    ESP.restart();
 }

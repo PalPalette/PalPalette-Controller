@@ -721,7 +721,7 @@ void handleDeviceRegistration()
                 return;
             }
 
-            wsClient = new WSClient(&deviceManager, &lightManager);
+            wsClient = new WSClient(&deviceManager, &lightManager, &wifiManager);
 
             // Check allocation success
             if (wsClient == nullptr)
