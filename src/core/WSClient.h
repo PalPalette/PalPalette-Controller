@@ -4,6 +4,7 @@
 #include <ArduinoWebsockets.h>
 #include <ArduinoJson.h>
 #include "DeviceManager.h"
+#include "WiFiManager.h"
 #include "../lighting/LightManager.h"
 #include "../config.h"
 #include "../root_ca.h"
@@ -27,6 +28,7 @@ private:
     WebsocketsClient client;
     DeviceManager *deviceManager;
     LightManager *lightManager;
+    WiFiManager *wifiManager;
     String serverUrl;
     bool isConnected;
     unsigned long lastHeartbeat;
@@ -62,7 +64,7 @@ private:
     ColorPalette convertToLightPalette(const LegacyColorPalette &legacyPalette);
 
 public:
-    WSClient(DeviceManager *devManager, LightManager *lightMgr = nullptr);
+    WSClient(DeviceManager *devManager, LightManager *lightMgr = nullptr, WiFiManager *wifiMgr = nullptr);
     ~WSClient(); // Destructor for proper cleanup
 
     void begin(const String &url);
@@ -76,6 +78,9 @@ public:
 
     // Light management
     void setLightManager(LightManager *lightMgr);
+
+    // WiFi management
+    void setWiFiManager(WiFiManager *wifiMgr);
 
     // Manual lighting authentication retry (for when initial authentication fails)
     bool retryLightingAuthentication();
