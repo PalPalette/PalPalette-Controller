@@ -30,7 +30,7 @@ src/
 ## Adding New Lighting Hardware
 
 1. Create `YourController.h/cpp` in `lighting/controllers/`
-2. Inherit from `LightController` and implement virtual methods
+2. Inherit from `LightController` and implement virtual method
 3. Add to factory in `LightController.cpp`
 
 ## Architecture
